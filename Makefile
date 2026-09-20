@@ -95,17 +95,17 @@ SDL2_VERSION := 2.28.5
 SDL2_DIR     := SDL-release-$(SDL2_VERSION)
 SDL2_ARCHIVE := $(SDL2_DIR).tar.gz
 
-SPEEXDSP_VERSION := 1.2.1
-SPEEXDSP_DIR     := speexdsp-$(SPEEXDSP_VERSION)
-SPEEXDSP_ARCHIVE := $(SPEEXDSP_DIR).tar.gz
-
 WINPTHREAD_VERSION := 11.0.0
 WINPTHREAD_DIR     := mingw-w64-v$(WINPTHREAD_VERSION)
 WINPTHREAD_ARCHIVE := $(WINPTHREAD_DIR).tar.bz2
 
-ZLIB_VERSION := 1.3
+ZLIB_VERSION := 1.3.1
 ZLIB_DIR     := zlib-$(ZLIB_VERSION)
 ZLIB_ARCHIVE := $(ZLIB_DIR).tar.gz
+
+ZSTD_VERSION := 1.5.6
+ZSTD_DIR     := zstd-$(ZSTD_VERSION)
+ZSTD_ARCHIVE := $(ZSTD_DIR).tar.gz
 
 CMAKE_CONFIGURE = mkdir -p $(@D)/_build && cd $(@D)/_build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_TOOLCHAIN_FILE=$(MAKE_DIR)/mingw32.cmake -DCMAKE_INSTALL_PREFIX=$(PREFIX_DIR) -DCMAKE_PREFIX_PATH=$(PREFIX_DIR) -DCMAKE_FIND_ROOT_PATH="/usr/i686-w64-mingw32;$(PREFIX_DIR)" -DCOMPILE_FLAGS="-march=i686"
 
@@ -114,40 +114,58 @@ AUTOTOOLS_CONFIGURE = mkdir -p $(@D)/_build && cd $(@D)/_build && ../configure -
 .PHONY: all
 all: $(OPENRCT2_DIR)/built
 
+OPENRCT2_DATA_ARCHIVE := OpenRCT2-v0.4.32-windows-portable-win32.zip
+
+$(OPENRCT2_DATA_ARCHIVE):
+	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/v0.4.32/$@
+
 .PHONY: install
-install: $(OPENRCT2_DIR)/built
-	rm -rf $(INSTALL_DIR) && mkdir $(INSTALL_DIR)
-	cp \
-		$(OPENRCT2_DIR)/_build/openrct2.exe \
-		$(OPENRCT2_DIR)/_build/openrct2-cli.exe \
-		$(PREFIX_DIR)/bin/SDL2.dll \
-		$(PREFIX_DIR)/bin/libpng16.dll \
-		$(PREFIX_DIR)/bin/libwinpthread-1.dll \
-		$(PREFIX_DIR)/bin/libspeexdsp-1.dll \
-		$(PREFIX_DIR)/bin/libzip.dll \
-		/usr/i686-w64-mingw32/lib/libgcc_s_sjlj-1.dll \
-		/usr/i686-w64-mingw32/lib/libssp-0.dll \
-		/usr/i686-w64-mingw32/lib/libstdc++-6.dll \
-		$(INSTALL_DIR)
+install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE)
+	rm -rf $(INSTALL_DIR) && mkdir -p $(INSTALL_DIR)
+	cp $(OPENRCT2_DIR)/_build/openrct2.exe $(INSTALL_DIR)
+	cp $(OPENRCT2_DIR)/_build/openrct2-cli.exe $(INSTALL_DIR)
+	[ -f $(OPENRCT2_DIR)/_build/openrct2.com ] && cp $(OPENRCT2_DIR)/_build/openrct2.com $(INSTALL_DIR) || true
+	[ -f $(PREFIX_DIR)/bin/SDL2.dll ] && cp $(PREFIX_DIR)/bin/SDL2.dll $(INSTALL_DIR) || true
+	[ -f $(PREFIX_DIR)/bin/libpng16.dll ] && cp $(PREFIX_DIR)/bin/libpng16.dll $(INSTALL_DIR) || true
+	[ -f $(PREFIX_DIR)/bin/libwinpthread-1.dll ] && cp $(PREFIX_DIR)/bin/libwinpthread-1.dll $(INSTALL_DIR) || true
+	[ -f $(PREFIX_DIR)/bin/libzip.dll ] && cp $(PREFIX_DIR)/bin/libzip.dll $(INSTALL_DIR) || true
+	[ -f $(PREFIX_DIR)/bin/libzstd.dll ] && cp $(PREFIX_DIR)/bin/libzstd.dll $(INSTALL_DIR) || true
 	cp -r $(OPENRCT2_DIR)/data $(INSTALL_DIR)
+	unzip -o $(OPENRCT2_DATA_ARCHIVE) "data/g2.dat" "data/fonts.dat" "data/palettes.dat" "data/tracks.dat" "data/object/*" "data/sequence/*" -d $(INSTALL_DIR)
 
 # Removes all build artifacts (but not downloaded files)
 .PHONY: clean
 clean:
-	$(RM) -r build i686-w64-mingw32-pkg-config $(CURL_DIR) $(FLAC_DIR) $(FREETYPE_DIR) $(GMP_DIR) $(LIBICONV_DIR) $(LIBOGG_DIR) $(LIBPNG_DIR) $(LIBTASN1_DIR) $(LIBUNISTRING_DIR) $(LIBVORBIS_DIR) $(LIBZIP_DIR) $(MBEDTLS_DIR) $(NETTLE_DIR) $(NLOHMANNJSON_DIR) $(OPENRCT2_DIR) $(OPENSSL_DIR) $(P11KIT_DIR) $(SDL2_DIR) $(SPEEXDSP_DIR) $(WINPTHREAD_DIR) $(ZLIB_DIR)
+	$(RM) -r build i686-w64-mingw32-pkg-config $(CURL_DIR) $(FLAC_DIR) $(FREETYPE_DIR) $(GMP_DIR) $(LIBICONV_DIR) $(LIBOGG_DIR) $(LIBPNG_DIR) $(LIBTASN1_DIR) $(LIBUNISTRING_DIR) $(LIBVORBIS_DIR) $(LIBZIP_DIR) $(MBEDTLS_DIR) $(NETTLE_DIR) $(NLOHMANNJSON_DIR) $(OPENRCT2_DIR) $(OPENSSL_DIR) $(P11KIT_DIR) $(SDL2_DIR) $(WINPTHREAD_DIR) $(ZLIB_DIR) $(ZSTD_DIR)
 
 # Removes all build artifacts and downloaded files
 .PHONY: distclean
 distclean: clean
-	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(SPEEXDSP_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE)
+	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE) $(ZSTD_ARCHIVE) $(OPENRCT2_DATA_ARCHIVE)
 
 $(OPENRCT2_DIR)/extracted:
-	git clone --depth 1 --branch v0.4.6 https://github.com/OpenRCT2/OpenRCT2
-	cd $(@D) && patch -f -p1 < $(MAKE_DIR)/xp-compat.patch
+	git clone --depth 1 --branch v0.4.32 https://github.com/OpenRCT2/OpenRCT2
+	cd $(@D) && patch -f -p1 < $(MAKE_DIR)/xp-compat-v0.4.32.patch
 	touch $@
 
-$(OPENRCT2_DIR)/configured: $(OPENRCT2_DIR)/extracted $(CURL_DIR)/installed $(FLAC_DIR)/installed $(FREETYPE_DIR)/installed $(LIBICONV_DIR)/installed $(LIBPNG_DIR)/installed $(LIBOGG_DIR)/installed $(LIBVORBIS_DIR)/installed $(LIBZIP_DIR)/installed $(MBEDTLS_DIR)/installed $(NLOHMANNJSON_DIR)/installed $(OPENSSL_DIR)/installed $(SDL2_DIR)/installed $(SPEEXDSP_DIR)/installed $(WINPTHREAD_DIR)/installed $(ZLIB_DIR)/installed i686-w64-mingw32-pkg-config
-	mkdir -p $(@D)/_build && cd $(@D)/_build && cmake .. -DCMAKE_TOOLCHAIN_FILE=../CMakeLists_mingw.txt -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) -DCMAKE_INSTALL_PREFIX="$(PREFIX_DIR)" -DCMAKE_PREFIX_PATH="$(PREFIX_DIR)" -DCMAKE_CXX_FLAGS="-march=i686 -I$(PREFIX_DIR)/include -I$(PREFIX_DIR)/include/SDL2 -fpermissive $(if $(STATIC),-DCURL_STATICLIB,) -DFLAC__NO_DLL" -DDISABLE_DISCORD_RPC=ON -DDOWNLOAD_OPENMSX=OFF -DDOWNLOAD_OPENSFX=OFF -DCMAKE_EXE_LINKER_FLAGS="-L$(PREFIX_DIR)/lib" -DPKG_CONFIG_EXECUTABLE="$(TOPDIR)/i686-w64-mingw32-pkg-config" -DSTATIC=$(if $(STATIC),ON,OFF) -DPORTABLE=ON -DCMAKE_LIBRARY_PATH="$(PREFIX_DIR)" -DCMAKE_INCLUDE_PATH="$(PREFIX_DIR)" -DCMAKE_FIND_USE_CMAKE_SYSTEM_PATH=FALSE -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE)
+$(OPENRCT2_DIR)/configured: $(OPENRCT2_DIR)/extracted $(CURL_DIR)/installed $(FLAC_DIR)/installed $(FREETYPE_DIR)/installed $(LIBICONV_DIR)/installed $(LIBPNG_DIR)/installed $(LIBOGG_DIR)/installed $(LIBVORBIS_DIR)/installed $(LIBZIP_DIR)/installed $(MBEDTLS_DIR)/installed $(NLOHMANNJSON_DIR)/installed $(OPENSSL_DIR)/installed $(SDL2_DIR)/installed $(WINPTHREAD_DIR)/installed $(ZLIB_DIR)/installed $(ZSTD_DIR)/installed i686-w64-mingw32-pkg-config
+	mkdir -p $(@D)/_build && cd $(@D)/_build && cmake .. \
+		-DCMAKE_TOOLCHAIN_FILE=$(MAKE_DIR)/mingw32.cmake \
+		-DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) \
+		-DCMAKE_INSTALL_PREFIX="$(PREFIX_DIR)" \
+		-DCMAKE_PREFIX_PATH="$(PREFIX_DIR)" \
+		-DCMAKE_CXX_FLAGS="-march=i686 -I$(PREFIX_DIR)/include -I$(PREFIX_DIR)/include/SDL2 $(if $(STATIC),-DCURL_STATICLIB,) -DFLAC__NO_DLL" \
+		-DDISABLE_DISCORD_RPC=ON \
+		-DDOWNLOAD_OPENMSX=OFF \
+		-DDOWNLOAD_OPENSFX=OFF \
+		-DDOWNLOAD_TITLE_SEQUENCES=OFF \
+		-DCMAKE_EXE_LINKER_FLAGS="-L$(PREFIX_DIR)/lib -Wl,--major-os-version,5,--minor-os-version,1,--major-subsystem-version,5,--minor-subsystem-version,1" \
+		-DPKG_CONFIG_EXECUTABLE="$(TOPDIR)/i686-w64-mingw32-pkg-config" \
+		-DSTATIC=$(if $(STATIC),ON,OFF) \
+		-DPORTABLE=ON \
+		-DCMAKE_LIBRARY_PATH="$(PREFIX_DIR)" \
+		-DCMAKE_INCLUDE_PATH="$(PREFIX_DIR)" \
+		-DCMAKE_FIND_USE_CMAKE_SYSTEM_PATH=FALSE
 	touch $@
 
 $(OPENRCT2_DIR)/built: $(OPENRCT2_DIR)/configured
@@ -189,7 +207,7 @@ $(FREETYPE_DIR)/configured: $(FREETYPE_DIR)/extracted
 # GMP
 
 $(GMP_ARCHIVE):
-	wget https://gmplib.org/download/gmp/$@
+	wget https://ftp.gnu.org/gnu/gmp/$@
 
 $(GMP_DIR)/configured: $(GMP_DIR)/extracted
 	$(AUTOTOOLS_CONFIGURE)
@@ -331,19 +349,35 @@ $(SDL2_DIR)/configured: $(SDL2_DIR)/extracted
 	$(CMAKE_CONFIGURE) $(if $(STATIC),-DSDL_SHARED=OFF,) -DSDL_SSE=OFF -DSDL_SSE2=OFF -DSDL_SSE3=OFF -DSDL_SSEMATH=OFF
 	touch $@
 
-# Speex DSP
+# Zstandard (zstd)
 
-$(SPEEXDSP_ARCHIVE):
-	wget http://downloads.xiph.org/releases/speex/$@
+$(ZSTD_ARCHIVE):
+	wget https://github.com/facebook/zstd/releases/download/v$(ZSTD_VERSION)/$@
 
-$(SPEEXDSP_DIR)/configured: $(SPEEXDSP_DIR)/extracted
-	$(AUTOTOOLS_CONFIGURE) $(if $(STATIC),--disable-shared)
+$(ZSTD_DIR)/configured: $(ZSTD_DIR)/extracted
+	mkdir -p $(@D)/build/cmake/_build && cd $(@D)/build/cmake/_build && cmake .. \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_TOOLCHAIN_FILE=$(MAKE_DIR)/mingw32.cmake \
+		-DCMAKE_INSTALL_PREFIX=$(PREFIX_DIR) \
+		-DCMAKE_PREFIX_PATH=$(PREFIX_DIR) \
+		-DZSTD_BUILD_PROGRAMS=OFF \
+		-DZSTD_BUILD_TESTS=OFF \
+		-DZSTD_BUILD_SHARED=$(if $(STATIC),OFF,ON) \
+		-DZSTD_BUILD_STATIC=ON
+	touch $@
+
+$(ZSTD_DIR)/built: $(ZSTD_DIR)/configured
+	cd $(@D)/build/cmake/_build && make -j$(CPU_CORES)
+	touch $@
+
+$(ZSTD_DIR)/installed: $(ZSTD_DIR)/built
+	cd $(@D)/build/cmake/_build && make install
 	touch $@
 
 # Winpthread
 
 $(WINPTHREAD_ARCHIVE):
-	wget https://newcontinuum.dl.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/$@
+	wget https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/$@
 
 $(WINPTHREAD_DIR)/configured: $(WINPTHREAD_DIR)/extracted
 	mkdir -p $(@D)/_build && cd $(@D)/_build && ../mingw-w64-libraries/winpthreads/configure --host=i686-w64-mingw32 --prefix=$(PREFIX_DIR) CFLAGS="-I$(PREFIX_DIR)/include -D_WIN32_WINNT=0x501" LDFLAGS="-L$(PREFIX_DIR)/lib"
@@ -352,7 +386,7 @@ $(WINPTHREAD_DIR)/configured: $(WINPTHREAD_DIR)/extracted
 # Zlib
 
 $(ZLIB_ARCHIVE):
-	wget https://www.zlib.net/$@
+	wget https://github.com/madler/zlib/releases/download/v$(ZLIB_VERSION)/$@
 
 $(ZLIB_DIR)/configured: $(ZLIB_DIR)/extracted
 	$(CMAKE_CONFIGURE)

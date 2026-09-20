@@ -1,4 +1,4 @@
-This repository contains a Makefile and source code patch to build OpenRCT2 (v0.4.6 at the time of writing) for Windows XP, as well as precompiled binaries in the [Releases](https://github.com/NinjaCowboy/OpenRCT2-winxp/releases/) section.
+This repository contains a Makefile and source code patch to build OpenRCT2 (v0.4.32 at the time of writing) for Windows XP, as well as precompiled binaries in the [Releases](https://github.com/NinjaCowboy/OpenRCT2-winxp/releases/) section.
 
 # Instructions
 
@@ -13,7 +13,9 @@ This Makefile is designed for Unix/Linux environments and will automatically dow
 * cmake
 * git
 * make
-* mingw-w64
+* meson
+* mingw-w64 (GCC 13+ recommended for C++20 `<format>`)
+* ninja
 * patch
 * perl
 * wget
@@ -22,4 +24,11 @@ This Makefile is designed for Unix/Linux environments and will automatically dow
 
 ## Debian/Ubuntu
 
-On Debian or Ubuntu, mingw-w64 comes with support for two different threading models: win32 and posix. The C++ thread library only works with the posix threading model, though win32 is selected by defaut. To fix this, run `sudo update-alternatives --config i686-w64-mingw32-gcc` and `sudo update-alternatives --config i686-w64-mingw32-g++`, and select the option with the `-posix` suffix.
+On Debian or Ubuntu, mingw-w64 comes with support for two different threading models: win32 and posix. The C++ thread library only works with the posix threading model, though win32 is selected by default. To fix this, run:
+```bash
+sudo update-alternatives --config i686-w64-mingw32-gcc
+sudo update-alternatives --config i686-w64-mingw32-g++
+```
+and select the option with the `-posix` suffix.
+
+Note: OpenRCT2 v0.4.32 uses C++20 and standard library formatting (`<format>`), which requires MinGW GCC 13 or newer (available by default on Ubuntu 24.04 Noble or Debian Trixie/Sid).

@@ -25,4 +25,9 @@ p11-kit-*/
 SDL-*/
 speexdsp-*/
 zlib-*/
+zstd-*/
+upstream-*/
+__pycache__/
+.vscode/
 OpenRCT2-winxp/
+
