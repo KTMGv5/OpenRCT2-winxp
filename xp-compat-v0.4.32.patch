@@ -757,10 +757,10 @@ index 558d85a..4cf0fc7 100644
          }
 diff --git a/src/openrct2/platform/nt51shim.cpp b/src/openrct2/platform/nt51shim.cpp
 new file mode 100644
-index 0000000..6316f2e
+index 0000000..b2ec962
 --- /dev/null
 +++ b/src/openrct2/platform/nt51shim.cpp
-@@ -0,0 +1,444 @@
+@@ -0,0 +1,510 @@
 +// API shims for Windows XP compatibility
 +#include <windows.h>
 +#include <shlobj.h>
@@ -965,6 +965,15 @@ index 0000000..6316f2e
 +} RTL_SRWLOCK, *PRTL_SRWLOCK;
 +typedef RTL_SRWLOCK SRWLOCK, *PSRWLOCK;
 +#define SRWLOCK_INIT {0}
++#endif
++
++#ifndef INIT_ONCE_STATIC_INIT
++typedef union _RTL_RUN_ONCE {
++    PVOID Ptr;
++} RTL_RUN_ONCE, *PRTL_RUN_ONCE;
++typedef RTL_RUN_ONCE INIT_ONCE, *PINIT_ONCE;
++#define INIT_ONCE_STATIC_INIT {0}
++typedef BOOL (WINAPI *PINIT_ONCE_FN)(PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context);
 +#endif
 +
 +// --- Condition Variables Shim for Windows XP ---
@@ -1173,6 +1182,63 @@ index 0000000..6316f2e
 +    return SleepConditionVariableCS(ConditionVariable, cs, dwMilliseconds);
 +}
 +DLL_OVERRIDE(SleepConditionVariableSRW, 16)
++
++// --- InitOnce Shim for Windows XP ---
++
++VOID WINAPI InitOnceInitialize(PINIT_ONCE InitOnce)
++{
++    if (InitOnce)
++        InitOnce->Ptr = NULL;
++}
++DLL_OVERRIDE(InitOnceInitialize, 4)
++
++BOOL WINAPI InitOnceExecuteOnce(PINIT_ONCE InitOnce, PINIT_ONCE_FN InitFn, PVOID Parameter, LPVOID *Context)
++{
++    if (!InitOnce || !InitFn)
++        return FALSE;
++
++    for (;;)
++    {
++        uintptr_t val = (uintptr_t)InitOnce->Ptr;
++        if ((val & 3) == 2)
++        {
++            // Completed
++            if (Context)
++                *Context = (LPVOID)(val & ~3);
++            return TRUE;
++        }
++
++        if (val == 0)
++        {
++            // Try to claim initialization (transition 0 -> 1)
++            if (InterlockedCompareExchangePointer((PVOID volatile *)&InitOnce->Ptr, (PVOID)1, (PVOID)0) == (PVOID)0)
++            {
++                // Won the race, execute callback
++                PVOID out_ctx = NULL;
++                if (InitFn(InitOnce, Parameter, &out_ctx))
++                {
++                    uintptr_t comp_val = ((uintptr_t)out_ctx & ~3) | 2;
++                    InterlockedExchangePointer((PVOID volatile *)&InitOnce->Ptr, (PVOID)comp_val);
++                    if (Context)
++                        *Context = (LPVOID)((uintptr_t)out_ctx & ~3);
++                    return TRUE;
++                }
++                else
++                {
++                    // Callback failed, reset state so future calls can retry
++                    InterlockedExchangePointer((PVOID volatile *)&InitOnce->Ptr, (PVOID)0);
++                    return FALSE;
++                }
++            }
++        }
++        else
++        {
++            // Initialization in progress by another thread (or transient state)
++            Sleep(1);
++        }
++    }
++}
++DLL_OVERRIDE(InitOnceExecuteOnce, 16)
 +
 +// --- GetTickCount64 Shim for Windows XP ---
 +
