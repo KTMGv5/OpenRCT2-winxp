@@ -114,10 +114,10 @@ AUTOTOOLS_CONFIGURE = mkdir -p $(@D)/_build && cd $(@D)/_build && ../configure -
 .PHONY: all
 all: $(OPENRCT2_DIR)/built
 
-OPENRCT2_DATA_ARCHIVE := OpenRCT2-v0.4.32-windows-portable-win32.zip
+OPENRCT2_DATA_ARCHIVE := OpenRCT2-v0.5.5-windows-portable-win32.zip
 
 $(OPENRCT2_DATA_ARCHIVE):
-	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/v0.4.32/$@
+	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/v0.5.5/$@
 
 .PHONY: install
 install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE)
@@ -144,8 +144,8 @@ distclean: clean
 	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE) $(ZSTD_ARCHIVE) $(OPENRCT2_DATA_ARCHIVE)
 
 $(OPENRCT2_DIR)/extracted:
-	git clone --depth 1 --branch v0.4.32 https://github.com/OpenRCT2/OpenRCT2
-	cd $(@D) && patch -f -p1 < $(MAKE_DIR)/xp-compat-v0.4.32.patch
+	git clone --depth 1 --branch v0.5.5 https://github.com/OpenRCT2/OpenRCT2
+	cd $(@D) && patch -f -p1 < $(MAKE_DIR)/xp-compat-v0.5.5.patch
 	touch $@
 
 $(OPENRCT2_DIR)/configured: $(OPENRCT2_DIR)/extracted $(CURL_DIR)/installed $(FLAC_DIR)/installed $(FREETYPE_DIR)/installed $(LIBICONV_DIR)/installed $(LIBPNG_DIR)/installed $(LIBOGG_DIR)/installed $(LIBVORBIS_DIR)/installed $(LIBZIP_DIR)/installed $(MBEDTLS_DIR)/installed $(NLOHMANNJSON_DIR)/installed $(OPENSSL_DIR)/installed $(SDL2_DIR)/installed $(WINPTHREAD_DIR)/installed $(ZLIB_DIR)/installed $(ZSTD_DIR)/installed i686-w64-mingw32-pkg-config
