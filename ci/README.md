@@ -78,6 +78,19 @@ To test if current XP compatibility patches work with new upstream releases:
 
 # Or check against a specific upstream version:
 ./ci/scripts/auto-patch.sh v0.5.6 xp-compat-v0.5.5.patch
+
+# Or check against upstream develop branch:
+./ci/scripts/auto-patch.sh develop
 ```
 
 If the patch applies cleanly, it automatically creates `xp-compat-<VERSION>.patch`. If upstream changes broke compatibility, it reports rejected hunks (`.rej`) for targeted patching.
+
+---
+
+## Nightly Development Pipeline (`Jenkinsfile.nightly`)
+
+The `OpenRCT2-winxp-nightly` pipeline automates builds from upstream `develop`:
+- **Schedule**: Automatically triggers daily at `02:00 AM` (`H 2 * * *`).
+- **Dynamic Artifacts**: Creates `OpenRCT2-winxp-nightly-<YYYYMMDD>-<SHORT_SHA>.zip`.
+- **Pre-Flight Validation**: Executes `auto-patch.sh develop` and `check_xp_compat.py` to prevent broken builds.
+- **Log & Artifact Retention**: Automatically retains the latest 10 builds and 5 release archives.
