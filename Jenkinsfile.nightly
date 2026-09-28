@@ -7,8 +7,8 @@ pipeline {
     }
 
     triggers {
-        // Run daily at 02:00 AM server time
-        cron('H 2 * * *')
+        // Poll for new upstream OpenRCT2 commits every 30 minutes
+        cron('H/30 * * * *')
     }
 
     parameters {
@@ -34,7 +34,7 @@ pipeline {
         )
         booleanParam(
             name: 'PUBLISH_TO_GITHUB',
-            defaultValue: false,
+            defaultValue: true,
             description: 'Automatically publish the nightly zip to GitHub Releases as a pre-release'
         )
         string(
@@ -66,10 +66,10 @@ pipeline {
             }
         }
 
-        stage('Check Upstream Commits') {
+        stage('Check Upstream for New Commits') {
             steps {
                 script {
-                    echo "Checking upstream commit on branch ${BRANCH}..."
+                    echo "Checking upstream OpenRCT2 on branch '${BRANCH}'..."
                     def sha = sh(
                         script: "git ls-remote https://github.com/OpenRCT2/OpenRCT2.git refs/heads/${BRANCH} | awk '{print \$1}'",
                         returnStdout: true
@@ -82,16 +82,53 @@ pipeline {
                     def shortSha = sha.take(7)
                     env.UPSTREAM_SHA = sha
                     env.SHORT_SHA = shortSha
-                    env.NIGHTLY_PACKAGE = "OpenRCT2-winxp-nightly-${BUILD_DATE}-${shortSha}.zip"
 
-                    currentBuild.displayName = "#${BUILD_NUMBER} - ${BRANCH} (${shortSha})"
-                    currentBuild.description = "Upstream commit ${sha} built on ${BUILD_DATE}"
-                    echo "Target upstream commit: ${sha} (${shortSha})"
+                    def lastBuiltSha = ""
+                    if (fileExists(".last_built_develop_sha")) {
+                        lastBuiltSha = readFile(".last_built_develop_sha").trim()
+                    }
+
+                    echo "Latest upstream commit: ${sha} (${shortSha})"
+                    echo "Last built commit:       ${lastBuiltSha}"
+
+                    // Check if GitHub Releases already contains a release for this commit
+                    def alreadyPublished = false
+                    try {
+                        withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
+                            def releaseCheck = sh(
+                                script: "gh release list --repo ${GITHUB_REPO} --limit 30 | grep -q '${shortSha}'",
+                                returnStatus: true
+                            )
+                            if (releaseCheck == 0) {
+                                alreadyPublished = true
+                            }
+                        }
+                    } catch (Exception ignored) {}
+
+                    if ((sha == lastBuiltSha || alreadyPublished) && !params.FORCE_BUILD) {
+                        echo "=================================================="
+                        echo "Upstream OpenRCT2 has no new commits since last build."
+                        echo "Commit ${shortSha} is already built and published."
+                        echo "Skipping build (use FORCE_BUILD=true to override)."
+                        echo "=================================================="
+                        env.SKIP_BUILD = "true"
+                        currentBuild.displayName = "#${BUILD_NUMBER} - ${shortSha} (skipped: up-to-date)"
+                        currentBuild.description = "Upstream ${BRANCH} commit ${shortSha} is already built"
+                    } else {
+                        env.SKIP_BUILD = "false"
+                        env.NIGHTLY_PACKAGE = "OpenRCT2-winxp-nightly-${BUILD_DATE}-${shortSha}.zip"
+                        currentBuild.displayName = "#${BUILD_NUMBER} - ${BRANCH} (${shortSha})"
+                        currentBuild.description = "Upstream commit ${sha} built on ${BUILD_DATE}"
+                        echo "New upstream commits detected! Proceeding to build ${shortSha}..."
+                    }
                 }
             }
         }
 
         stage('Prepare Workspace & Cache') {
+            when {
+                expression { return env.SKIP_BUILD != "true" }
+            }
             steps {
                 script {
                     sh '''
@@ -109,10 +146,12 @@ pipeline {
         }
 
         stage('Verify & Auto-Patch Upstream') {
+            when {
+                expression { return env.SKIP_BUILD != "true" }
+            }
             steps {
                 script {
                     echo "Testing Windows XP compatibility patch against latest upstream ${BRANCH}..."
-                    // auto-patch.sh tests the patch dry-run and copies to xp-compat-${BRANCH}.patch
                     sh "./ci/scripts/auto-patch.sh ${BRANCH} xp-compat-v0.5.5.patch"
 
                     def patchFile = "${WORKSPACE}/xp-compat-${BRANCH}.patch"
@@ -126,6 +165,9 @@ pipeline {
         }
 
         stage('Build OpenRCT2 Nightly') {
+            when {
+                expression { return env.SKIP_BUILD != "true" }
+            }
             steps {
                 echo "Compiling OpenRCT2 ${BRANCH} (${env.SHORT_SHA}) with ${NUM_CORES} parallel cores..."
                 sh """
@@ -139,6 +181,9 @@ pipeline {
         }
 
         stage('Windows XP Compatibility Verification') {
+            when {
+                expression { return env.SKIP_BUILD != "true" }
+            }
             steps {
                 echo "Scanning generated nightly binaries for Windows Vista+ API violations..."
                 sh """
@@ -150,6 +195,9 @@ pipeline {
         }
 
         stage('Package Nightly Release') {
+            when {
+                expression { return env.SKIP_BUILD != "true" }
+            }
             steps {
                 echo "Packaging nightly portable zip: ${env.NIGHTLY_PACKAGE}..."
                 sh """
@@ -172,7 +220,7 @@ pipeline {
 
         stage('Publish Nightly to GitHub') {
             when {
-                expression { return params.PUBLISH_TO_GITHUB == true }
+                expression { return env.SKIP_BUILD != "true" && params.PUBLISH_TO_GITHUB == true }
             }
             steps {
                 script {
@@ -214,8 +262,15 @@ pipeline {
 
     post {
         success {
-            echo "Nightly dev build completed and passed XP compatibility verification!"
-            archiveArtifacts artifacts: 'OpenRCT2-winxp-nightly*.zip, OpenRCT2/_build/openrct2.exe, OpenRCT2/_build/openrct2-cli.exe, OpenRCT2/_build/openrct2.com', fingerprint: true, allowEmptyArchive: false
+            script {
+                if (env.SKIP_BUILD != "true") {
+                    echo "Nightly dev build completed and passed XP compatibility verification!"
+                    writeFile file: ".last_built_develop_sha", text: env.UPSTREAM_SHA
+                    archiveArtifacts artifacts: 'OpenRCT2-winxp-nightly*.zip, OpenRCT2/_build/openrct2.exe, OpenRCT2/_build/openrct2-cli.exe, OpenRCT2/_build/openrct2.com', fingerprint: true, allowEmptyArchive: true
+                } else {
+                    echo "Build successfully skipped: Upstream OpenRCT2 is already up-to-date."
+                }
+            }
         }
         failure {
             echo "Nightly build or compatibility check failed. Please inspect console logs."
