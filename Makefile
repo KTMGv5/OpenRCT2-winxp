@@ -118,10 +118,12 @@ AUTOTOOLS_CONFIGURE = mkdir -p $(@D)/_build && cd $(@D)/_build && ../configure -
 .PHONY: all
 all: $(OPENRCT2_DIR)/built
 
-OPENRCT2_DATA_ARCHIVE := OpenRCT2-$(OPENRCT2_VERSION)-windows-portable-win32.zip
+DATA_VERSION ?= $(if $(filter develop% nightly%,$(OPENRCT2_VERSION)),v0.5.5,$(OPENRCT2_VERSION))
+OPENRCT2_DATA_ARCHIVE := OpenRCT2-$(DATA_VERSION)-windows-portable-win32.zip
+PACKAGE_NAME ?= OpenRCT2-winxp-$(OPENRCT2_VERSION).zip
 
 $(OPENRCT2_DATA_ARCHIVE):
-	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/$(OPENRCT2_VERSION)/$@
+	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/$(DATA_VERSION)/$@
 
 .PHONY: install
 install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE)
@@ -149,7 +151,7 @@ check: $(OPENRCT2_DIR)/built
 
 .PHONY: package
 package: install
-	cd $(TOPDIR) && rm -f OpenRCT2-winxp-$(OPENRCT2_VERSION).zip && zip -r OpenRCT2-winxp-$(OPENRCT2_VERSION).zip OpenRCT2-winxp
+	cd $(TOPDIR) && rm -f $(PACKAGE_NAME) && zip -r $(PACKAGE_NAME) OpenRCT2-winxp
 
 .PHONY: test-patch
 test-patch:

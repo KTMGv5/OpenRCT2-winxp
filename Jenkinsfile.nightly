@@ -1,0 +1,163 @@
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '5'))
+        disableConcurrentBuilds()
+    }
+
+    triggers {
+        // Run daily at 02:00 AM server time
+        cron('H 2 * * *')
+    }
+
+    parameters {
+        string(
+            name: 'OPENRCT2_BRANCH',
+            defaultValue: 'develop',
+            description: 'Upstream git branch for nightly development builds'
+        )
+        choice(
+            name: 'BUILD_TYPE',
+            choices: ['Release', 'Debug'],
+            description: 'CMake build type'
+        )
+        booleanParam(
+            name: 'FORCE_BUILD',
+            defaultValue: false,
+            description: 'Build even if no new upstream commits were pushed'
+        )
+        booleanParam(
+            name: 'REUSE_BUILD_CACHE',
+            defaultValue: true,
+            description: 'Reuse precompiled dependency libraries from /home/tyler/OpenRCT2-XP/build'
+        )
+    }
+
+    environment {
+        BRANCH       = "${params.OPENRCT2_BRANCH}"
+        BUILD_TYPE   = "${params.BUILD_TYPE}"
+        NUM_CORES    = sh(script: 'nproc 2>/dev/null || echo 4', returnStdout: true).trim()
+        BUILD_DATE   = sh(script: 'date +%Y%m%d', returnStdout: true).trim()
+    }
+
+    stages {
+        stage('Toolchain Check') {
+            steps {
+                echo "=== Verifying Build Toolchain for Nightly Build ==="
+                sh '''
+                    i686-w64-mingw32-gcc --version | head -n 1
+                    i686-w64-mingw32-g++ --version | head -n 1
+                    cmake --version | head -n 1
+                    python3 --version
+                    which patch wget pkgconf
+                '''
+            }
+        }
+
+        stage('Check Upstream Commits') {
+            steps {
+                script {
+                    echo "Checking upstream commit on branch ${BRANCH}..."
+                    def sha = sh(
+                        script: "git ls-remote https://github.com/OpenRCT2/OpenRCT2.git refs/heads/${BRANCH} | awk '{print \$1}'",
+                        returnStdout: true
+                    ).trim()
+
+                    if (!sha) {
+                        error("Could not fetch remote commit SHA for branch ${BRANCH}")
+                    }
+
+                    def shortSha = sha.take(7)
+                    env.UPSTREAM_SHA = sha
+                    env.SHORT_SHA = shortSha
+                    env.NIGHTLY_PACKAGE = "OpenRCT2-winxp-nightly-${BUILD_DATE}-${shortSha}.zip"
+
+                    currentBuild.displayName = "#${BUILD_NUMBER} - ${BRANCH} (${shortSha})"
+                    currentBuild.description = "Upstream commit ${sha} built on ${BUILD_DATE}"
+                    echo "Target upstream commit: ${sha} (${shortSha})"
+                }
+            }
+        }
+
+        stage('Prepare Workspace & Cache') {
+            steps {
+                script {
+                    sh '''
+                        if [ "${REUSE_BUILD_CACHE}" = "true" ] && [ ! -d "build" ]; then
+                            if [ -d "/home/tyler/OpenRCT2-XP/build" ]; then
+                                echo "Populating dependency cache from /home/tyler/OpenRCT2-XP/build..."
+                                cp -r /home/tyler/OpenRCT2-XP/build .
+                                [ -f "/home/tyler/OpenRCT2-XP/i686-w64-mingw32-pkg-config" ] && cp /home/tyler/OpenRCT2-XP/i686-w64-mingw32-pkg-config .
+                                echo "Cache copied successfully."
+                            fi
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Verify & Auto-Patch Upstream') {
+            steps {
+                script {
+                    echo "Testing Windows XP compatibility patch against latest upstream ${BRANCH}..."
+                    // auto-patch.sh tests the patch dry-run and copies to xp-compat-${BRANCH}.patch
+                    sh "./ci/scripts/auto-patch.sh ${BRANCH} xp-compat-v0.5.5.patch"
+
+                    def patchFile = "${WORKSPACE}/xp-compat-${BRANCH}.patch"
+                    if (!fileExists(patchFile)) {
+                        patchFile = "${WORKSPACE}/xp-compat-v0.5.5.patch"
+                    }
+                    env.RESOLVED_PATCH = patchFile
+                    echo "Using verified patch: ${env.RESOLVED_PATCH}"
+                }
+            }
+        }
+
+        stage('Build OpenRCT2 Nightly') {
+            steps {
+                echo "Compiling OpenRCT2 ${BRANCH} (${env.SHORT_SHA}) with ${NUM_CORES} parallel cores..."
+                sh """
+                    make all \
+                        OPENRCT2_VERSION=${BRANCH} \
+                        PATCH_FILE="${env.RESOLVED_PATCH}" \
+                        CMAKE_BUILD_TYPE=${BUILD_TYPE} \
+                        CPU_CORES=${NUM_CORES}
+                """
+            }
+        }
+
+        stage('Windows XP Compatibility Verification') {
+            steps {
+                echo "Scanning generated nightly binaries for Windows Vista+ API violations..."
+                sh """
+                    make check \
+                        OPENRCT2_VERSION=${BRANCH} \
+                        PATCH_FILE="${env.RESOLVED_PATCH}"
+                """
+            }
+        }
+
+        stage('Package Nightly Release') {
+            steps {
+                echo "Packaging nightly portable zip: ${env.NIGHTLY_PACKAGE}..."
+                sh """
+                    make package \
+                        OPENRCT2_VERSION=${BRANCH} \
+                        PATCH_FILE="${env.RESOLVED_PATCH}" \
+                        PACKAGE_NAME="${env.NIGHTLY_PACKAGE}"
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Nightly dev build completed and passed XP compatibility verification!"
+            archiveArtifacts artifacts: 'OpenRCT2-winxp-nightly*.zip, OpenRCT2/_build/openrct2.exe, OpenRCT2/_build/openrct2-cli.exe, OpenRCT2/_build/openrct2.com', fingerprint: true, allowEmptyArchive: false
+        }
+        failure {
+            echo "Nightly build or compatibility check failed. Please inspect console logs."
+        }
+    }
+}
