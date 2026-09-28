@@ -90,11 +90,11 @@ pipeline {
                             error("No suitable patch found for OpenRCT2 ${OPENRCT2_VER}!")
                         }
                     }
-                    echo "Using patch file: ${patch}"
-                    env.RESOLVED_PATCH = patch
+                    env.RESOLVED_PATCH = "${WORKSPACE}/${patch}"
+                    echo "Using patch file: ${env.RESOLVED_PATCH}"
 
                     echo "Testing patch application against upstream ${OPENRCT2_VER}..."
-                    sh "make test-patch OPENRCT2_VERSION=${OPENRCT2_VER} PATCH_FILE=${env.RESOLVED_PATCH}"
+                    sh "make test-patch OPENRCT2_VERSION=${OPENRCT2_VER} PATCH_FILE=\"${env.RESOLVED_PATCH}\""
                 }
             }
         }

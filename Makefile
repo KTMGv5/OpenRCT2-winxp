@@ -24,6 +24,9 @@ INSTALL_DIR := $(TOPDIR)/OpenRCT2-winxp
 CPU_CORES ?= $(shell nproc 2>/dev/null || echo 4)
 OPENRCT2_VERSION ?= v0.5.5
 PATCH_FILE ?= $(MAKE_DIR)xp-compat-$(OPENRCT2_VERSION).patch
+ifeq ($(filter /%,$(PATCH_FILE)),)
+    PATCH_FILE := $(TOPDIR)/$(PATCH_FILE)
+endif
 
 CURL_VERSION := 8.5.0
 #CURL_VERSION := 8.4.0
@@ -152,7 +155,7 @@ package: install
 test-patch:
 	@echo "Testing patch $(PATCH_FILE) against upstream $(OPENRCT2_VERSION)..."
 	rm -rf .tmp-upstream && git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2 .tmp-upstream
-	cd .tmp-upstream && patch --dry-run -p1 < $(PATCH_FILE)
+	patch --dry-run -p1 -d .tmp-upstream < $(PATCH_FILE)
 	@echo "Patch $(PATCH_FILE) applies cleanly to $(OPENRCT2_VERSION)!"
 	rm -rf .tmp-upstream
 
@@ -168,7 +171,7 @@ distclean: clean
 
 $(OPENRCT2_DIR)/extracted:
 	git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2
-	cd $(@D) && patch -f -p1 < $(PATCH_FILE)
+	patch -f -p1 -d $(@D) < $(PATCH_FILE)
 	touch $@
 
 $(OPENRCT2_DIR)/configured: $(OPENRCT2_DIR)/extracted $(CURL_DIR)/installed $(FLAC_DIR)/installed $(FREETYPE_DIR)/installed $(LIBICONV_DIR)/installed $(LIBPNG_DIR)/installed $(LIBOGG_DIR)/installed $(LIBVORBIS_DIR)/installed $(LIBZIP_DIR)/installed $(MBEDTLS_DIR)/installed $(NLOHMANNJSON_DIR)/installed $(OPENSSL_DIR)/installed $(SDL2_DIR)/installed $(WINPTHREAD_DIR)/installed $(ZLIB_DIR)/installed $(ZSTD_DIR)/installed i686-w64-mingw32-pkg-config
