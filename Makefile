@@ -125,8 +125,13 @@ PACKAGE_NAME ?= OpenRCT2-winxp-$(OPENRCT2_VERSION).zip
 $(OPENRCT2_DATA_ARCHIVE):
 	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/$(DATA_VERSION)/$@
 
+CACERT_PEM := cacert.pem
+
+$(CACERT_PEM):
+	wget -c https://curl.se/ca/cacert.pem -O $@
+
 .PHONY: install
-install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE)
+install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM)
 	rm -rf $(INSTALL_DIR) && mkdir -p $(INSTALL_DIR)
 	cp $(OPENRCT2_DIR)/_build/openrct2.exe $(INSTALL_DIR)
 	cp $(OPENRCT2_DIR)/_build/openrct2-cli.exe $(INSTALL_DIR)
@@ -136,6 +141,7 @@ install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE)
 	[ -f $(PREFIX_DIR)/bin/libwinpthread-1.dll ] && cp $(PREFIX_DIR)/bin/libwinpthread-1.dll $(INSTALL_DIR) || true
 	[ -f $(PREFIX_DIR)/bin/libzip.dll ] && cp $(PREFIX_DIR)/bin/libzip.dll $(INSTALL_DIR) || true
 	[ -f $(PREFIX_DIR)/bin/libzstd.dll ] && cp $(PREFIX_DIR)/bin/libzstd.dll $(INSTALL_DIR) || true
+	cp $(CACERT_PEM) $(INSTALL_DIR)/cacert.pem
 	cp -r $(OPENRCT2_DIR)/data $(INSTALL_DIR)
 	unzip -o $(OPENRCT2_DATA_ARCHIVE) "data/g2.dat" "data/fonts.dat" "data/palettes.dat" "data/tracks.dat" "data/object/*" "data/sequence/*" -d $(INSTALL_DIR)
 
@@ -169,7 +175,7 @@ clean:
 # Removes all build artifacts and downloaded files
 .PHONY: distclean
 distclean: clean
-	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE) $(ZSTD_ARCHIVE) $(OPENRCT2_DATA_ARCHIVE)
+	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE) $(ZSTD_ARCHIVE) $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM)
 
 $(OPENRCT2_DIR)/extracted:
 	git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2

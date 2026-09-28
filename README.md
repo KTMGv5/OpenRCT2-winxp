@@ -4,7 +4,7 @@ This repository contains a Makefile and source code patch to build OpenRCT2 (v0.
 
 Download the OpenRCT2 Windows x86 Portable zip from [here](https://github.com/OpenRCT2/OpenRCT2/releases/download/v0.5.5/OpenRCT2-v0.5.5-windows-portable-win32.zip) and extract it. Go to the [Releases](https://github.com/KTMGv5/OpenRCT2-winxp/releases/) section, download the zip, and replace openrct2.exe and openrct2-cli.exe with the ones in the zip you just downloaded.
 
-Networking and multiplayer games are supported! Due to Windows XP not having built-in support for TLS 1.2, libcurl and MbedTLS provide such functionality needed to connect to publicly hosted games. You must download an updated certificate store from [here](https://curl.se/ca/cacert.pem) and place it in the same folder as openrct2.exe.
+Networking and multiplayer games are supported! Due to Windows XP not having built-in support for TLS 1.2, libcurl and MbedTLS provide such functionality needed to connect to publicly hosted games. An updated TLS certificate store (`cacert.pem`) from [curl.se](https://curl.se/ca/cacert.pem) is automatically bundled directly with each release alongside `openrct2.exe`.
 
 # Building from source
 

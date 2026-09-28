@@ -147,6 +147,15 @@ pipeline {
                         PATCH_FILE="${env.RESOLVED_PATCH}" \
                         PACKAGE_NAME="${env.NIGHTLY_PACKAGE}"
                 """
+                echo "Verifying mandatory TLS certificate store (cacert.pem)..."
+                sh """
+                    if unzip -l "${env.NIGHTLY_PACKAGE}" | grep -q "cacert.pem"; then
+                        echo "[PASS] cacert.pem verified inside nightly package!"
+                    else
+                        echo "[FAIL] FATAL ERROR: cacert.pem is missing from the nightly package!" >&2
+                        exit 1
+                    fi
+                """
             }
         }
     }
