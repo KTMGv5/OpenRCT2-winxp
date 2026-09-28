@@ -21,8 +21,9 @@ MAKE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 TOPDIR := $(shell pwd)
 PREFIX_DIR := $(TOPDIR)/build
 INSTALL_DIR := $(TOPDIR)/OpenRCT2-winxp
-
-CPU_CORES := 4
+CPU_CORES ?= $(shell nproc 2>/dev/null || echo 4)
+OPENRCT2_VERSION ?= v0.5.5
+PATCH_FILE ?= $(MAKE_DIR)xp-compat-$(OPENRCT2_VERSION).patch
 
 CURL_VERSION := 8.5.0
 #CURL_VERSION := 8.4.0
@@ -114,10 +115,10 @@ AUTOTOOLS_CONFIGURE = mkdir -p $(@D)/_build && cd $(@D)/_build && ../configure -
 .PHONY: all
 all: $(OPENRCT2_DIR)/built
 
-OPENRCT2_DATA_ARCHIVE := OpenRCT2-v0.5.5-windows-portable-win32.zip
+OPENRCT2_DATA_ARCHIVE := OpenRCT2-$(OPENRCT2_VERSION)-windows-portable-win32.zip
 
 $(OPENRCT2_DATA_ARCHIVE):
-	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/v0.5.5/$@
+	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/$(OPENRCT2_VERSION)/$@
 
 .PHONY: install
 install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE)
@@ -133,6 +134,28 @@ install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE)
 	cp -r $(OPENRCT2_DIR)/data $(INSTALL_DIR)
 	unzip -o $(OPENRCT2_DATA_ARCHIVE) "data/g2.dat" "data/fonts.dat" "data/palettes.dat" "data/tracks.dat" "data/object/*" "data/sequence/*" -d $(INSTALL_DIR)
 
+.PHONY: check
+check: $(OPENRCT2_DIR)/built
+	python3 $(MAKE_DIR)check_xp_compat.py $(OPENRCT2_DIR)/_build/openrct2.exe
+	python3 $(MAKE_DIR)check_xp_compat.py $(OPENRCT2_DIR)/_build/openrct2-cli.exe
+	@for dll in $(PREFIX_DIR)/bin/*.dll; do \
+		if [ -f "$$dll" ]; then \
+			python3 $(MAKE_DIR)check_xp_compat.py "$$dll"; \
+		fi; \
+	done
+
+.PHONY: package
+package: install
+	cd $(TOPDIR) && rm -f OpenRCT2-winxp-$(OPENRCT2_VERSION).zip && zip -r OpenRCT2-winxp-$(OPENRCT2_VERSION).zip OpenRCT2-winxp
+
+.PHONY: test-patch
+test-patch:
+	@echo "Testing patch $(PATCH_FILE) against upstream $(OPENRCT2_VERSION)..."
+	rm -rf .tmp-upstream && git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2 .tmp-upstream
+	cd .tmp-upstream && patch --dry-run -p1 < $(PATCH_FILE)
+	@echo "Patch $(PATCH_FILE) applies cleanly to $(OPENRCT2_VERSION)!"
+	rm -rf .tmp-upstream
+
 # Removes all build artifacts (but not downloaded files)
 .PHONY: clean
 clean:
@@ -144,8 +167,8 @@ distclean: clean
 	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE) $(ZSTD_ARCHIVE) $(OPENRCT2_DATA_ARCHIVE)
 
 $(OPENRCT2_DIR)/extracted:
-	git clone --depth 1 --branch v0.5.5 https://github.com/OpenRCT2/OpenRCT2
-	cd $(@D) && patch -f -p1 < $(MAKE_DIR)/xp-compat-v0.5.5.patch
+	git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2
+	cd $(@D) && patch -f -p1 < $(PATCH_FILE)
 	touch $@
 
 $(OPENRCT2_DIR)/configured: $(OPENRCT2_DIR)/extracted $(CURL_DIR)/installed $(FLAC_DIR)/installed $(FREETYPE_DIR)/installed $(LIBICONV_DIR)/installed $(LIBPNG_DIR)/installed $(LIBOGG_DIR)/installed $(LIBVORBIS_DIR)/installed $(LIBZIP_DIR)/installed $(MBEDTLS_DIR)/installed $(NLOHMANNJSON_DIR)/installed $(OPENSSL_DIR)/installed $(SDL2_DIR)/installed $(WINPTHREAD_DIR)/installed $(ZLIB_DIR)/installed $(ZSTD_DIR)/installed i686-w64-mingw32-pkg-config
