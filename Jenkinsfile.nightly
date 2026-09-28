@@ -32,11 +32,22 @@ pipeline {
             defaultValue: true,
             description: 'Reuse precompiled dependency libraries from /home/tyler/OpenRCT2-XP/build'
         )
+        booleanParam(
+            name: 'PUBLISH_TO_GITHUB',
+            defaultValue: false,
+            description: 'Automatically publish the nightly zip to GitHub Releases as a pre-release'
+        )
+        string(
+            name: 'GITHUB_REPO',
+            defaultValue: 'KTMGv5/OpenRCT2-winxp',
+            description: 'Target GitHub repository (owner/repo)'
+        )
     }
 
     environment {
         BRANCH       = "${params.OPENRCT2_BRANCH}"
         BUILD_TYPE   = "${params.BUILD_TYPE}"
+        GITHUB_REPO  = "${params.GITHUB_REPO}"
         NUM_CORES    = sh(script: 'nproc 2>/dev/null || echo 4', returnStdout: true).trim()
         BUILD_DATE   = sh(script: 'date +%Y%m%d', returnStdout: true).trim()
     }
@@ -156,6 +167,47 @@ pipeline {
                         exit 1
                     fi
                 """
+            }
+        }
+
+        stage('Publish Nightly to GitHub') {
+            when {
+                expression { return params.PUBLISH_TO_GITHUB == true }
+            }
+            steps {
+                script {
+                    echo "Preparing GitHub Pre-Release for Nightly ${env.SHORT_SHA} on ${GITHUB_REPO}..."
+                    try {
+                        withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
+                            sh """
+                                TAG="nightly-${BUILD_DATE}-${env.SHORT_SHA}"
+                                ZIP_FILE="${env.NIGHTLY_PACKAGE}"
+                                if [ ! -f "\${ZIP_FILE}" ]; then
+                                    echo "Error: Nightly package \${ZIP_FILE} not found." >&2
+                                    exit 1
+                                fi
+                                echo "Release artifact: \${ZIP_FILE}"
+                                echo "Publishing as GitHub pre-release with tag: \${TAG}..."
+
+                                if gh release view "\${TAG}" --repo "${GITHUB_REPO}" >/dev/null 2>&1; then
+                                    echo "Updating existing release \${TAG}..."
+                                    gh release upload "\${TAG}" "\${ZIP_FILE}" --repo "${GITHUB_REPO}" --clobber
+                                else
+                                    echo "Creating new GitHub pre-release for \${TAG}..."
+                                    gh release create "\${TAG}" "\${ZIP_FILE}" \
+                                        --repo "${GITHUB_REPO}" \
+                                        --title "OpenRCT2 Windows XP Nightly (${BUILD_DATE} - ${env.SHORT_SHA})" \
+                                        --notes "Automated nightly development build of OpenRCT2 for Windows XP compiled from upstream develop commit ${env.UPSTREAM_SHA}. Includes TLS 1.2 support and pre-bundled cacert.pem." \
+                                        --prerelease
+                                fi
+                                echo "GitHub nightly pre-release published successfully!"
+                            """
+                        }
+                    } catch (Exception e) {
+                        echo "Notice: Could not publish nightly to GitHub: ${e.getMessage()}"
+                        echo "Ensure a Secret text credential named 'github-token' exists in Jenkins."
+                    }
+                }
             }
         }
     }
