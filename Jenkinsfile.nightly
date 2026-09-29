@@ -7,8 +7,8 @@ pipeline {
     }
 
     triggers {
-        // Poll for new upstream OpenRCT2 commits every 30 minutes
-        cron('H/30 * * * *')
+        // Poll for new upstream OpenRCT2 commits once per hour
+        cron('H * * * *')
     }
 
     parameters {
