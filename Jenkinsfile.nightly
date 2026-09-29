@@ -152,11 +152,12 @@ pipeline {
             steps {
                 script {
                     echo "Testing Windows XP compatibility patch against latest upstream ${BRANCH}..."
-                    sh "./ci/scripts/auto-patch.sh ${BRANCH} xp-compat-v0.5.5.patch"
+                    def basePatch = fileExists("xp-compat-${BRANCH}.patch") ? "xp-compat-${BRANCH}.patch" : "xp-compat-v0.5.5.patch"
+                    sh "chmod +x ./ci/scripts/*.sh && bash ./ci/scripts/auto-patch.sh ${BRANCH} ${basePatch}"
 
                     def patchFile = "${WORKSPACE}/xp-compat-${BRANCH}.patch"
                     if (!fileExists(patchFile)) {
-                        patchFile = "${WORKSPACE}/xp-compat-v0.5.5.patch"
+                        patchFile = "${WORKSPACE}/${basePatch}"
                     }
                     env.RESOLVED_PATCH = patchFile
                     echo "Using verified patch: ${env.RESOLVED_PATCH}"
