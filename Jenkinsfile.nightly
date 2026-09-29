@@ -235,6 +235,16 @@ pipeline {
                                     exit 1
                                 fi
                                 echo "Release artifact: \${ZIP_FILE}"
+
+                                echo "Cleaning up previous nightly pre-release(s)..."
+                                OLD_NIGHTLIES=\$(gh release list --repo "${GITHUB_REPO}" --limit 50 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true and (.tagName | startswith("nightly-"))) | .tagName')
+                                for old_tag in \${OLD_NIGHTLIES}; do
+                                    if [ "\${old_tag}" != "\${TAG}" ]; then
+                                        echo "Deleting previous pre-release: \${old_tag}..."
+                                        gh release delete "\${old_tag}" --repo "${GITHUB_REPO}" --cleanup-tag --yes || true
+                                    fi
+                                done
+
                                 echo "Publishing as GitHub pre-release with tag: \${TAG}..."
 
                                 if gh release view "\${TAG}" --repo "${GITHUB_REPO}" >/dev/null 2>&1; then
