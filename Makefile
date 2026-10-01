@@ -20,7 +20,7 @@ CMAKE_BUILD_TYPE ?= Release
 MAKE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 TOPDIR := $(shell pwd)
 PREFIX_DIR := $(TOPDIR)/build
-INSTALL_DIR := $(TOPDIR)/OpenRCT2-winxp
+INSTALL_DIR := $(TOPDIR)/OpenRCT2-WindowsXP
 CPU_CORES ?= $(shell nproc 2>/dev/null || echo 4)
 OPENRCT2_REPO ?= https://github.com/KTMGv5/OpenRCT2-WindowsXP.git
 OPENRCT2_BRANCH ?= winxp
@@ -122,9 +122,9 @@ AUTOTOOLS_CONFIGURE = mkdir -p $(@D)/_build && cd $(@D)/_build && ../configure -
 .PHONY: all
 all: $(OPENRCT2_DIR)/built
 
-DATA_VERSION ?= $(if $(filter develop% nightly%,$(OPENRCT2_VERSION)),v0.5.5,$(OPENRCT2_VERSION))
+DATA_VERSION ?= $(if $(filter v0.%,$(OPENRCT2_VERSION)),$(OPENRCT2_VERSION),v0.5.5)
 OPENRCT2_DATA_ARCHIVE := OpenRCT2-$(DATA_VERSION)-windows-portable-win32.zip
-PACKAGE_NAME ?= OpenRCT2-winxp-$(OPENRCT2_VERSION).zip
+PACKAGE_NAME ?= OpenRCT2-WindowsXP-$(OPENRCT2_VERSION).zip
 
 $(OPENRCT2_DATA_ARCHIVE):
 	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/$(DATA_VERSION)/$@
@@ -161,7 +161,7 @@ check: $(OPENRCT2_DIR)/built
 
 .PHONY: package
 package: install
-	cd $(TOPDIR) && rm -f $(PACKAGE_NAME) && zip -r $(PACKAGE_NAME) OpenRCT2-winxp
+	cd $(TOPDIR) && rm -f $(PACKAGE_NAME) && zip -r $(PACKAGE_NAME) OpenRCT2-WindowsXP
 
 .PHONY: test-patch
 test-patch:
@@ -178,7 +178,7 @@ test-patch:
 # Removes all build artifacts (but not downloaded files)
 .PHONY: clean
 clean:
-	$(RM) -r build i686-w64-mingw32-pkg-config $(CURL_DIR) $(FLAC_DIR) $(FREETYPE_DIR) $(GMP_DIR) $(LIBICONV_DIR) $(LIBOGG_DIR) $(LIBPNG_DIR) $(LIBTASN1_DIR) $(LIBUNISTRING_DIR) $(LIBVORBIS_DIR) $(LIBZIP_DIR) $(MBEDTLS_DIR) $(NETTLE_DIR) $(NLOHMANNJSON_DIR) $(OPENRCT2_DIR) $(OPENSSL_DIR) $(P11KIT_DIR) $(SDL2_DIR) $(WINPTHREAD_DIR) $(ZLIB_DIR) $(ZSTD_DIR)
+	$(RM) -r build i686-w64-mingw32-pkg-config $(CURL_DIR) $(FLAC_DIR) $(FREETYPE_DIR) $(GMP_DIR) $(LIBICONV_DIR) $(LIBOGG_DIR) $(LIBPNG_DIR) $(LIBTASN1_DIR) $(LIBUNISTRING_DIR) $(LIBVORBIS_DIR) $(LIBZIP_DIR) $(MBEDTLS_DIR) $(NETTLE_DIR) $(NLOHMANNJSON_DIR) $(OPENRCT2_DIR) $(OPENSSL_DIR) $(P11KIT_DIR) $(SDL2_DIR) $(WINPTHREAD_DIR) $(ZLIB_DIR) $(ZSTD_DIR) OpenRCT2-winxp OpenRCT2-WindowsXP
 
 # Removes all build artifacts and downloaded files
 .PHONY: distclean

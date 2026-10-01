@@ -47,24 +47,26 @@ This will automatically:
 
 ## Pipeline Features
 
-When you click **Build with Parameters** in Jenkins, the following options are available:
-
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `OPENRCT2_VERSION` | `v0.5.5` | Upstream OpenRCT2 git tag or release to build |
-| `PATCH_FILE` | *(auto-detected)* | Specific patch file (defaults to `xp-compat-${OPENRCT2_VERSION}.patch`) |
+| `OPENRCT2_REPO` | `https://github.com/KTMGv5/OpenRCT2-WindowsXP.git` | Native Windows XP fork repository |
+| `OPENRCT2_BRANCH` | `winxp` | Git branch to build |
+| `PATCH_FILE` | `(empty)` | Optional patch file (empty for native fork) |
 | `BUILD_TYPE` | `Release` | CMake build mode (`Release` or `Debug`) |
 | `CLEAN_BUILD` | `false` | Clean working tree before compilation |
-| `REUSE_BUILD_CACHE` | `true` | Reuse precompiled static libraries to accelerate builds from ~30m to ~2m |
+| `REUSE_BUILD_CACHE` | `true` | Reuse precompiled static libraries from `/home/tyler/OpenRCT2-XP/build` |
+| `PUBLISH_TO_GITHUB` | `true` | Automatically publish release zip and binaries to GitHub Releases |
+| `GITHUB_REPO` | `KTMGv5/OpenRCT2-WindowsXP` | Target GitHub repository to publish releases to |
 
 ### Pipeline Stages
-1. **Toolchain Check**: Validates GCC 13+ MinGW posix compiler, CMake, Meson, Ninja, Python 3.
-2. **Workspace & Cache Setup**: Mounts or copies prebuilt third-party dependencies.
-3. **Determine & Verify Patch**: Validates that the Windows XP compatibility patch applies cleanly to upstream source code before building.
+1. **Toolchain Check**: Validates GCC 13+ MinGW POSIX compiler, CMake, Meson, Ninja, Python 3.
+2. **Workspace & Cache Setup**: Copies prebuilt third-party dependencies from `/home/tyler/OpenRCT2-XP/build`.
+3. **Determine & Verify Source**: Detects native Windows XP fork (`KTMGv5/OpenRCT2-WindowsXP @ winxp`) — builds natively without patching.
 4. **Build Dependencies & OpenRCT2**: Multi-threaded parallel compilation (`-j$(nproc)`).
 5. **Windows XP Compatibility Verification**: Runs `check_xp_compat.py` on the output binaries to verify 0 Vista+ API or DLL imports.
-6. **Package Release**: Creates `OpenRCT2-winxp-${VERSION}.zip`.
-7. **Artifact Archival**: Publishes the `.zip` archive and standalone binaries as downloadable artifacts directly on the Jenkins build page.
+6. **Package Release**: Creates `OpenRCT2-WindowsXP-<version>.zip` bundled with TLS root certificates (`cacert.pem`).
+7. **Publish to GitHub**: Automatically creates a GitHub release on `https://github.com/KTMGv5/OpenRCT2-WindowsXP/releases` with release notes and downloadable assets.
+8. **Artifact Archival**: Publishes the `.zip` archive and standalone binaries as downloadable artifacts directly on the Jenkins build page.
 
 ---
 

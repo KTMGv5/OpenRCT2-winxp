@@ -188,7 +188,8 @@ pipeline {
                     try {
                         withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
                             sh '''
-                                TAG="v${BUILD_DATE}"
+                                SHORT_SHA=$(git -C OpenRCT2 rev-parse --short HEAD 2>/dev/null || echo "${OPENRCT2_BRANCH}")
+                                TAG="v${BUILD_DATE}-${SHORT_SHA}"
                                 ZIP_FILE=$(ls OpenRCT2-WindowsXP*.zip OpenRCT2-winxp*.zip 2>/dev/null | head -n 1)
                                 if [ -z "${ZIP_FILE}" ]; then
                                     echo "Error: No release zip found." >&2
@@ -204,7 +205,7 @@ pipeline {
                                     gh release create "${TAG}" "${ZIP_FILE}" OpenRCT2/_build/openrct2.exe OpenRCT2/_build/openrct2-cli.exe \
                                         --repo "${GITHUB_REPO}" \
                                         --title "OpenRCT2 - Windows XP Edition (${TAG})" \
-                                        --notes "Native build of OpenRCT2 Windows XP Edition (${TAG}). Built natively for Windows XP (NT 5.1) without binary patching. Includes modern TLS 1.2/1.3 multiplayer networking, root CA certificate store (cacert.pem), and legacy graphics driver fallbacks."
+                                        --notes "Native build of OpenRCT2 Windows XP Edition from commit \`${SHORT_SHA}\`. Built natively for Windows XP (NT 5.1) without binary patching. Includes modern TLS 1.2/1.3 multiplayer networking, root CA certificate store (cacert.pem), and legacy graphics driver fallbacks."
                                 fi
                                 echo "GitHub release published successfully to https://github.com/${GITHUB_REPO}/releases !"
                             '''
