@@ -45,10 +45,10 @@ pipeline {
     }
 
     environment {
-        OPENRCT2_REPO_URL = "${params.OPENRCT2_REPO}"
-        OPENRCT2_BRANCH   = "${params.OPENRCT2_BRANCH}"
-        BUILD_TYPE        = "${params.BUILD_TYPE}"
-        GITHUB_REPO       = "${params.GITHUB_REPO}"
+        OPENRCT2_REPO_URL = "${params.OPENRCT2_REPO ?: 'https://github.com/KTMGv5/OpenRCT2-WindowsXP.git'}"
+        OPENRCT2_BRANCH   = "${params.OPENRCT2_BRANCH ?: (params.OPENRCT2_VERSION ?: 'winxp')}"
+        BUILD_TYPE        = "${params.BUILD_TYPE ?: 'Release'}"
+        GITHUB_REPO       = "${params.GITHUB_REPO ?: 'KTMGv5/OpenRCT2-WindowsXP'}"
         NUM_CORES         = sh(script: 'nproc 2>/dev/null || echo 4', returnStdout: true).trim()
         BUILD_DATE        = sh(script: 'date +%Y%m%d', returnStdout: true).trim()
     }
@@ -180,7 +180,7 @@ pipeline {
 
         stage('Publish to GitHub') {
             when {
-                expression { return params.PUBLISH_TO_GITHUB == true }
+                expression { return params.PUBLISH_TO_GITHUB != false }
             }
             steps {
                 script {
