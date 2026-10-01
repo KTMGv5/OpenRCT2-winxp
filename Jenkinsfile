@@ -3,14 +3,19 @@ pipeline {
 
     parameters {
         string(
-            name: 'OPENRCT2_VERSION',
-            defaultValue: 'v0.5.5',
-            description: 'Git tag or branch of OpenRCT2 to build (e.g. v0.5.5, v0.4.32)'
+            name: 'OPENRCT2_REPO',
+            defaultValue: 'https://github.com/KTMGv5/OpenRCT2-WindowsXP.git',
+            description: 'Git repository URL of OpenRCT2 (defaults to our native Windows XP fork)'
+        )
+        string(
+            name: 'OPENRCT2_BRANCH',
+            defaultValue: 'winxp',
+            description: 'Git tag or branch of OpenRCT2 to build (e.g. winxp, develop, v0.5.5)'
         )
         string(
             name: 'PATCH_FILE',
             defaultValue: '',
-            description: 'Optional path or filename of patch (defaults to xp-compat-${OPENRCT2_VERSION}.patch)'
+            description: 'Optional path of patch file (leave empty when building native OpenRCT2-WindowsXP fork)'
         )
         choice(
             name: 'BUILD_TYPE',
@@ -29,21 +34,23 @@ pipeline {
         )
         booleanParam(
             name: 'PUBLISH_TO_GITHUB',
-            defaultValue: false,
+            defaultValue: true,
             description: 'Automatically publish the release zip and binaries to GitHub Releases'
         )
         string(
             name: 'GITHUB_REPO',
-            defaultValue: 'KTMGv5/OpenRCT2-winxp',
-            description: 'Target GitHub repository (owner/repo)'
+            defaultValue: 'KTMGv5/OpenRCT2-WindowsXP',
+            description: 'Target GitHub repository to post releases to (owner/repo)'
         )
     }
 
     environment {
-        OPENRCT2_VER = "${params.OPENRCT2_VERSION}"
-        BUILD_TYPE   = "${params.BUILD_TYPE}"
-        GITHUB_REPO  = "${params.GITHUB_REPO}"
-        NUM_CORES    = sh(script: 'nproc 2>/dev/null || echo 4', returnStdout: true).trim()
+        OPENRCT2_REPO_URL = "${params.OPENRCT2_REPO}"
+        OPENRCT2_BRANCH   = "${params.OPENRCT2_BRANCH}"
+        BUILD_TYPE        = "${params.BUILD_TYPE}"
+        GITHUB_REPO       = "${params.GITHUB_REPO}"
+        NUM_CORES         = sh(script: 'nproc 2>/dev/null || echo 4', returnStdout: true).trim()
+        BUILD_DATE        = sh(script: 'date +%Y%m%d', returnStdout: true).trim()
     }
 
     stages {
@@ -88,35 +95,42 @@ pipeline {
             }
         }
 
-        stage('Determine & Verify Patch') {
+        stage('Determine & Verify Source') {
             steps {
                 script {
                     def patch = params.PATCH_FILE.trim()
-                    if (!patch) {
-                        if (fileExists("xp-compat-${OPENRCT2_VER}.patch")) {
-                            patch = "xp-compat-${OPENRCT2_VER}.patch"
+                    if (patch) {
+                        env.RESOLVED_PATCH = "${WORKSPACE}/${patch}"
+                        echo "Using specified patch file: ${env.RESOLVED_PATCH}"
+                        sh "make test-patch OPENRCT2_REPO=${OPENRCT2_REPO_URL} OPENRCT2_BRANCH=${OPENRCT2_BRANCH} PATCH_FILE=\"${env.RESOLVED_PATCH}\""
+                    } else if (OPENRCT2_REPO_URL.contains("OpenRCT2-WindowsXP") || OPENRCT2_BRANCH == "winxp") {
+                        echo "Building from native Windows XP fork (${OPENRCT2_REPO_URL} @ ${OPENRCT2_BRANCH}) — no patch required."
+                        env.RESOLVED_PATCH = ""
+                    } else {
+                        if (fileExists("xp-compat-${OPENRCT2_BRANCH}.patch")) {
+                            patch = "xp-compat-${OPENRCT2_BRANCH}.patch"
                         } else if (fileExists("xp-compat.patch")) {
                             patch = "xp-compat.patch"
                         } else {
-                            error("No suitable patch found for OpenRCT2 ${OPENRCT2_VER}!")
+                            error("Building upstream without native XP changes, but no suitable patch found for ${OPENRCT2_BRANCH}!")
                         }
+                        env.RESOLVED_PATCH = "${WORKSPACE}/${patch}"
+                        echo "Testing patch application against ${OPENRCT2_BRANCH}..."
+                        sh "make test-patch OPENRCT2_REPO=${OPENRCT2_REPO_URL} OPENRCT2_BRANCH=${OPENRCT2_BRANCH} PATCH_FILE=\"${env.RESOLVED_PATCH}\""
                     }
-                    env.RESOLVED_PATCH = "${WORKSPACE}/${patch}"
-                    echo "Using patch file: ${env.RESOLVED_PATCH}"
-
-                    echo "Testing patch application against upstream ${OPENRCT2_VER}..."
-                    sh "make test-patch OPENRCT2_VERSION=${OPENRCT2_VER} PATCH_FILE=\"${env.RESOLVED_PATCH}\""
                 }
             }
         }
 
         stage('Build Dependencies & OpenRCT2') {
             steps {
-                echo "Compiling OpenRCT2 ${OPENRCT2_VER} with ${NUM_CORES} parallel jobs..."
+                echo "Compiling OpenRCT2 (${OPENRCT2_BRANCH}) from ${OPENRCT2_REPO_URL} with ${NUM_CORES} parallel jobs..."
                 sh """
                     make all \
-                        OPENRCT2_VERSION=${OPENRCT2_VER} \
-                        PATCH_FILE=${env.RESOLVED_PATCH} \
+                        OPENRCT2_REPO="${OPENRCT2_REPO_URL}" \
+                        OPENRCT2_BRANCH="${OPENRCT2_BRANCH}" \
+                        OPENRCT2_VERSION="${OPENRCT2_BRANCH}" \
+                        PATCH_FILE="${env.RESOLVED_PATCH}" \
                         CMAKE_BUILD_TYPE=${BUILD_TYPE} \
                         CPU_CORES=${NUM_CORES}
                 """
@@ -128,8 +142,10 @@ pipeline {
                 echo "Scanning generated PE binaries for Windows Vista/7/8/10+ API violations..."
                 sh """
                     make check \
-                        OPENRCT2_VERSION=${OPENRCT2_VER} \
-                        PATCH_FILE=${env.RESOLVED_PATCH}
+                        OPENRCT2_REPO="${OPENRCT2_REPO_URL}" \
+                        OPENRCT2_BRANCH="${OPENRCT2_BRANCH}" \
+                        OPENRCT2_VERSION="${OPENRCT2_BRANCH}" \
+                        PATCH_FILE="${env.RESOLVED_PATCH}"
                 """
             }
         }
@@ -139,12 +155,20 @@ pipeline {
                 echo "Packaging portable Windows XP release zip..."
                 sh """
                     make package \
-                        OPENRCT2_VERSION=${OPENRCT2_VER} \
+                        OPENRCT2_REPO="${OPENRCT2_REPO_URL}" \
+                        OPENRCT2_BRANCH="${OPENRCT2_BRANCH}" \
+                        OPENRCT2_VERSION="${OPENRCT2_BRANCH}" \
                         PATCH_FILE="${env.RESOLVED_PATCH}"
                 """
                 echo "Verifying mandatory TLS certificate store (cacert.pem)..."
                 sh '''
-                    if unzip -l OpenRCT2-winxp*.zip | grep -q "cacert.pem"; then
+                    ZIP_FILE=$(ls OpenRCT2-WindowsXP*.zip OpenRCT2-winxp*.zip 2>/dev/null | head -n 1)
+                    if [ -z "${ZIP_FILE}" ]; then
+                        echo "Error: No release package found." >&2
+                        exit 1
+                    fi
+                    echo "Checking package: ${ZIP_FILE}"
+                    if unzip -l "${ZIP_FILE}" | grep -q "cacert.pem"; then
                         echo "[PASS] cacert.pem verified inside release package!"
                     else
                         echo "[FAIL] FATAL ERROR: cacert.pem is missing from the package!" >&2
@@ -160,28 +184,29 @@ pipeline {
             }
             steps {
                 script {
-                    echo "Preparing GitHub Release for ${OPENRCT2_VER} on ${GITHUB_REPO}..."
+                    echo "Preparing GitHub Release on ${GITHUB_REPO}..."
                     try {
                         withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
                             sh '''
-                                TAG="${OPENRCT2_VER}"
-                                ZIP_FILE=$(ls OpenRCT2-winxp*.zip | head -n 1)
+                                TAG="v${BUILD_DATE}"
+                                ZIP_FILE=$(ls OpenRCT2-WindowsXP*.zip OpenRCT2-winxp*.zip 2>/dev/null | head -n 1)
                                 if [ -z "${ZIP_FILE}" ]; then
                                     echo "Error: No release zip found." >&2
                                     exit 1
                                 fi
-                                echo "Release artifact: ${ZIP_FILE}"
+                                echo "Publishing release artifact: ${ZIP_FILE} to ${GITHUB_REPO} (${TAG})"
+
                                 if gh release view "${TAG}" --repo "${GITHUB_REPO}" >/dev/null 2>&1; then
                                     echo "Updating existing GitHub release ${TAG}..."
-                                    gh release upload "${TAG}" "${ZIP_FILE}" --repo "${GITHUB_REPO}" --clobber
+                                    gh release upload "${TAG}" "${ZIP_FILE}" OpenRCT2/_build/openrct2.exe OpenRCT2/_build/openrct2-cli.exe --repo "${GITHUB_REPO}" --clobber
                                 else
                                     echo "Creating new GitHub release for ${TAG}..."
-                                    gh release create "${TAG}" "${ZIP_FILE}" \
+                                    gh release create "${TAG}" "${ZIP_FILE}" OpenRCT2/_build/openrct2.exe OpenRCT2/_build/openrct2-cli.exe \
                                         --repo "${GITHUB_REPO}" \
-                                        --title "OpenRCT2 for Windows XP - ${TAG}" \
-                                        --notes "Automated release of OpenRCT2 for Windows XP (${TAG}). Includes full TLS 1.2 support and pre-bundled cacert.pem."
+                                        --title "OpenRCT2 - Windows XP Edition (${TAG})" \
+                                        --notes "Native build of OpenRCT2 Windows XP Edition (${TAG}). Built natively for Windows XP (NT 5.1) without binary patching. Includes modern TLS 1.2/1.3 multiplayer networking, root CA certificate store (cacert.pem), and legacy graphics driver fallbacks."
                                 fi
-                                echo "GitHub release published successfully!"
+                                echo "GitHub release published successfully to https://github.com/${GITHUB_REPO}/releases !"
                             '''
                         }
                     } catch (Exception e) {
@@ -195,8 +220,8 @@ pipeline {
 
     post {
         success {
-            echo "Build and XP compatibility check passed successfully!"
-            archiveArtifacts artifacts: 'OpenRCT2-winxp*.zip, OpenRCT2/_build/openrct2.exe, OpenRCT2/_build/openrct2-cli.exe, OpenRCT2/_build/openrct2.com', fingerprint: true, allowEmptyArchive: false
+            echo "Build, XP compatibility check, and packaging passed successfully!"
+            archiveArtifacts artifacts: 'OpenRCT2-WindowsXP*.zip, OpenRCT2-winxp*.zip, OpenRCT2/_build/openrct2.exe, OpenRCT2/_build/openrct2-cli.exe, OpenRCT2/_build/openrct2.com', fingerprint: true, allowEmptyArchive: true
         }
         failure {
             echo "Build or compatibility check failed. Please inspect console logs."

@@ -7,15 +7,15 @@ pipeline {
     }
 
     triggers {
-        // Poll for new upstream OpenRCT2 commits once per hour
+        // Poll for new commits once per hour
         cron('H * * * *')
     }
 
     parameters {
         string(
             name: 'OPENRCT2_BRANCH',
-            defaultValue: 'develop',
-            description: 'Upstream git branch for nightly development builds'
+            defaultValue: 'winxp',
+            description: 'Git branch for builds on KTMGv5/OpenRCT2-WindowsXP'
         )
         choice(
             name: 'BUILD_TYPE',
@@ -25,7 +25,7 @@ pipeline {
         booleanParam(
             name: 'FORCE_BUILD',
             defaultValue: false,
-            description: 'Build even if no new upstream commits were pushed'
+            description: 'Build even if no new commits were pushed'
         )
         booleanParam(
             name: 'REUSE_BUILD_CACHE',
@@ -35,11 +35,11 @@ pipeline {
         booleanParam(
             name: 'PUBLISH_TO_GITHUB',
             defaultValue: true,
-            description: 'Automatically publish the nightly zip to GitHub Releases as a pre-release'
+            description: 'Automatically publish the build zip to GitHub Releases'
         )
         string(
             name: 'GITHUB_REPO',
-            defaultValue: 'KTMGv5/OpenRCT2-winxp',
+            defaultValue: 'KTMGv5/OpenRCT2-WindowsXP',
             description: 'Target GitHub repository (owner/repo)'
         )
     }
@@ -66,17 +66,17 @@ pipeline {
             }
         }
 
-        stage('Check Upstream for New Commits') {
+        stage('Check Repository for New Commits') {
             steps {
                 script {
-                    echo "Checking upstream OpenRCT2 on branch '${BRANCH}'..."
+                    echo "Checking ${GITHUB_REPO} on branch '${BRANCH}'..."
                     def sha = sh(
-                        script: "git ls-remote https://github.com/OpenRCT2/OpenRCT2.git refs/heads/${BRANCH} | awk '{print \$1}'",
+                        script: "git ls-remote https://github.com/${GITHUB_REPO}.git refs/heads/${BRANCH} | awk '{print \$1}'",
                         returnStdout: true
                     ).trim()
 
                     if (!sha) {
-                        error("Could not fetch remote commit SHA for branch ${BRANCH}")
+                        error("Could not fetch remote commit SHA for branch ${BRANCH} from ${GITHUB_REPO}")
                     }
 
                     def shortSha = sha.take(7)
@@ -88,8 +88,8 @@ pipeline {
                         lastBuiltSha = readFile(".last_built_develop_sha").trim()
                     }
 
-                    echo "Latest upstream commit: ${sha} (${shortSha})"
-                    echo "Last built commit:       ${lastBuiltSha}"
+                    echo "Latest commit on ${BRANCH}: ${sha} (${shortSha})"
+                    echo "Last built commit:           ${lastBuiltSha}"
 
                     // Check if GitHub Releases already contains a release for this commit
                     def alreadyPublished = false
@@ -107,19 +107,18 @@ pipeline {
 
                     if ((sha == lastBuiltSha || alreadyPublished) && !params.FORCE_BUILD) {
                         echo "=================================================="
-                        echo "Upstream OpenRCT2 has no new commits since last build."
+                        echo "Repository ${GITHUB_REPO} has no new commits since last build."
                         echo "Commit ${shortSha} is already built and published."
                         echo "Skipping build (use FORCE_BUILD=true to override)."
                         echo "=================================================="
                         env.SKIP_BUILD = "true"
                         currentBuild.displayName = "#${BUILD_NUMBER} - ${shortSha} (skipped: up-to-date)"
-                        currentBuild.description = "Upstream ${BRANCH} commit ${shortSha} is already built"
+                        currentBuild.description = "Branch ${BRANCH} commit ${shortSha} is already built"
                     } else {
                         env.SKIP_BUILD = "false"
-                        env.NIGHTLY_PACKAGE = "OpenRCT2-winxp-nightly-${BUILD_DATE}-${shortSha}.zip"
+                        env.NIGHTLY_PACKAGE = "OpenRCT2-WindowsXP-${BUILD_DATE}-${shortSha}.zip"
                         currentBuild.displayName = "#${BUILD_NUMBER} - ${BRANCH} (${shortSha})"
-                        currentBuild.description = "Upstream commit ${sha} built on ${BUILD_DATE}"
-                        echo "New upstream commits detected! Proceeding to build ${shortSha}..."
+                        currentBuild.description = "Building ${GITHUB_REPO} @ ${shortSha}"
                     }
                 }
             }
@@ -145,36 +144,26 @@ pipeline {
             }
         }
 
-        stage('Verify & Auto-Patch Upstream') {
+        stage('Verify Source') {
             when {
                 expression { return env.SKIP_BUILD != "true" }
             }
             steps {
-                script {
-                    echo "Testing Windows XP compatibility patch against latest upstream ${BRANCH}..."
-                    def basePatch = fileExists("xp-compat-${BRANCH}.patch") ? "xp-compat-${BRANCH}.patch" : "xp-compat-v0.5.5.patch"
-                    sh "chmod +x ./ci/scripts/*.sh && bash ./ci/scripts/auto-patch.sh ${BRANCH} ${basePatch}"
-
-                    def patchFile = "${WORKSPACE}/xp-compat-${BRANCH}.patch"
-                    if (!fileExists(patchFile)) {
-                        patchFile = "${WORKSPACE}/${basePatch}"
-                    }
-                    env.RESOLVED_PATCH = patchFile
-                    echo "Using verified patch: ${env.RESOLVED_PATCH}"
-                }
+                echo "Building directly from native Windows XP fork (${GITHUB_REPO} @ ${BRANCH}). No patching needed."
             }
         }
 
-        stage('Build OpenRCT2 Nightly') {
+        stage('Build OpenRCT2') {
             when {
                 expression { return env.SKIP_BUILD != "true" }
             }
             steps {
-                echo "Compiling OpenRCT2 ${BRANCH} (${env.SHORT_SHA}) with ${NUM_CORES} parallel cores..."
+                echo "Compiling OpenRCT2 ${BRANCH} (${env.SHORT_SHA}) from ${GITHUB_REPO} with ${NUM_CORES} parallel cores..."
                 sh """
                     make all \
-                        OPENRCT2_VERSION=${BRANCH} \
-                        PATCH_FILE="${env.RESOLVED_PATCH}" \
+                        OPENRCT2_REPO="https://github.com/${GITHUB_REPO}.git" \
+                        OPENRCT2_BRANCH="${BRANCH}" \
+                        OPENRCT2_VERSION="${BRANCH}" \
                         CMAKE_BUILD_TYPE=${BUILD_TYPE} \
                         CPU_CORES=${NUM_CORES}
                 """
@@ -186,86 +175,89 @@ pipeline {
                 expression { return env.SKIP_BUILD != "true" }
             }
             steps {
-                echo "Scanning generated nightly binaries for Windows Vista+ API violations..."
+                echo "Scanning generated binaries for Windows Vista+ API violations..."
                 sh """
                     make check \
-                        OPENRCT2_VERSION=${BRANCH} \
-                        PATCH_FILE="${env.RESOLVED_PATCH}"
+                        OPENRCT2_REPO="https://github.com/${GITHUB_REPO}.git" \
+                        OPENRCT2_BRANCH="${BRANCH}" \
+                        OPENRCT2_VERSION="${BRANCH}"
                 """
             }
         }
 
-        stage('Package Nightly Release') {
+        stage('Package Release') {
             when {
                 expression { return env.SKIP_BUILD != "true" }
             }
             steps {
-                echo "Packaging nightly portable zip: ${env.NIGHTLY_PACKAGE}..."
+                echo "Packaging portable zip: ${env.NIGHTLY_PACKAGE}..."
                 sh """
                     make package \
-                        OPENRCT2_VERSION=${BRANCH} \
-                        PATCH_FILE="${env.RESOLVED_PATCH}" \
+                        OPENRCT2_REPO="https://github.com/${GITHUB_REPO}.git" \
+                        OPENRCT2_BRANCH="${BRANCH}" \
+                        OPENRCT2_VERSION="${BRANCH}" \
                         PACKAGE_NAME="${env.NIGHTLY_PACKAGE}"
                 """
                 echo "Verifying mandatory TLS certificate store (cacert.pem)..."
                 sh """
                     if unzip -l "${env.NIGHTLY_PACKAGE}" | grep -q "cacert.pem"; then
-                        echo "[PASS] cacert.pem verified inside nightly package!"
+                        echo "[PASS] cacert.pem verified inside package!"
                     else
-                        echo "[FAIL] FATAL ERROR: cacert.pem is missing from the nightly package!" >&2
+                        echo "[FAIL] FATAL ERROR: cacert.pem is missing from the package!" >&2
                         exit 1
                     fi
                 """
             }
         }
 
-        stage('Publish Nightly to GitHub') {
+        stage('Publish Release to GitHub') {
             when {
-                expression { return env.SKIP_BUILD != "true" && params.PUBLISH_TO_GITHUB == true }
+                allOf {
+                    expression { return env.SKIP_BUILD != "true" }
+                    expression { return params.PUBLISH_TO_GITHUB == true }
+                }
             }
             steps {
                 script {
-                    echo "Preparing GitHub Pre-Release for Nightly ${env.SHORT_SHA} on ${GITHUB_REPO}..."
+                    echo "Publishing release to ${GITHUB_REPO}..."
                     try {
                         withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
                             sh """
-                                TAG="nightly-${BUILD_DATE}-${env.SHORT_SHA}"
-                                ZIP_FILE="${env.NIGHTLY_PACKAGE}"
-                                if [ ! -f "\${ZIP_FILE}" ]; then
-                                    echo "Error: Nightly package \${ZIP_FILE} not found." >&2
-                                    exit 1
-                                fi
-                                echo "Release artifact: \${ZIP_FILE}"
-
-                                echo "Cleaning up previous nightly pre-release(s)..."
-                                OLD_NIGHTLIES=\$(gh release list --repo "${GITHUB_REPO}" --limit 50 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true and (.tagName | startswith("nightly-"))) | .tagName')
-                                for old_tag in \${OLD_NIGHTLIES}; do
-                                    if [ "\${old_tag}" != "\${TAG}" ]; then
-                                        echo "Deleting previous pre-release: \${old_tag}..."
-                                        gh release delete "\${old_tag}" --repo "${GITHUB_REPO}" --cleanup-tag --yes || true
-                                    fi
-                                done
-
-                                echo "Publishing as GitHub pre-release with tag: \${TAG}..."
-
+                                TAG="v${BUILD_DATE}-${env.SHORT_SHA}"
+                                RELEASE_TITLE="OpenRCT2 - Windows XP Edition (${TAG})"
+                                
+                                echo "Publishing artifact: ${env.NIGHTLY_PACKAGE} to ${GITHUB_REPO}..."
+                                
                                 if gh release view "\${TAG}" --repo "${GITHUB_REPO}" >/dev/null 2>&1; then
-                                    echo "Updating existing release \${TAG}..."
-                                    gh release upload "\${TAG}" "\${ZIP_FILE}" --repo "${GITHUB_REPO}" --clobber
+                                    echo "Release \${TAG} already exists, uploading assets..."
+                                    gh release upload "\${TAG}" "${env.NIGHTLY_PACKAGE}" OpenRCT2/_build/openrct2.exe OpenRCT2/_build/openrct2-cli.exe --repo "${GITHUB_REPO}" --clobber
                                 else
-                                    echo "Creating new GitHub pre-release for \${TAG}..."
-                                    gh release create "\${TAG}" "\${ZIP_FILE}" \
+                                    echo "Creating new release for \${TAG}..."
+                                    gh release create "\${TAG}" "${env.NIGHTLY_PACKAGE}" OpenRCT2/_build/openrct2.exe OpenRCT2/_build/openrct2-cli.exe \
                                         --repo "${GITHUB_REPO}" \
-                                        --title "OpenRCT2 Windows XP Nightly (${BUILD_DATE} - ${env.SHORT_SHA})" \
-                                        --notes "Automated nightly development build of OpenRCT2 for Windows XP compiled from upstream develop commit ${env.UPSTREAM_SHA}. Includes TLS 1.2 support and pre-bundled cacert.pem." \
-                                        --prerelease
+                                        --title "\${RELEASE_TITLE}" \
+                                        --notes "Automated build of OpenRCT2 Windows XP Edition from commit \`${env.SHORT_SHA}\`. Built natively for Windows XP (NT 5.1) without binary patching. Includes modern TLS 1.2/1.3 multiplayer networking, root CA certificate store (cacert.pem), and legacy graphics driver fallbacks."
                                 fi
-                                echo "GitHub nightly pre-release published successfully!"
+
+                                echo "Release published successfully to https://github.com/${GITHUB_REPO}/releases !"
                             """
                         }
                     } catch (Exception e) {
-                        echo "Notice: Could not publish nightly to GitHub: ${e.getMessage()}"
-                        echo "Ensure a Secret text credential named 'github-token' exists in Jenkins."
+                        echo "Notice: Could not publish to GitHub: ${e.getMessage()}"
+                        echo "Ensure 'github-token' credential is configured in Jenkins."
                     }
+                }
+            }
+        }
+
+        stage('Record Successful Build') {
+            when {
+                expression { return env.SKIP_BUILD != "true" }
+            }
+            steps {
+                script {
+                    writeFile file: ".last_built_develop_sha", text: env.UPSTREAM_SHA
+                    echo "Recorded commit ${env.UPSTREAM_SHA} as successfully built."
                 }
             }
         }
@@ -275,16 +267,13 @@ pipeline {
         success {
             script {
                 if (env.SKIP_BUILD != "true") {
-                    echo "Nightly dev build completed and passed XP compatibility verification!"
-                    writeFile file: ".last_built_develop_sha", text: env.UPSTREAM_SHA
-                    archiveArtifacts artifacts: 'OpenRCT2-winxp-nightly*.zip, OpenRCT2/_build/openrct2.exe, OpenRCT2/_build/openrct2-cli.exe, OpenRCT2/_build/openrct2.com', fingerprint: true, allowEmptyArchive: true
-                } else {
-                    echo "Build successfully skipped: Upstream OpenRCT2 is already up-to-date."
+                    echo "Build and XP verification passed!"
+                    archiveArtifacts artifacts: "OpenRCT2-WindowsXP*.zip, OpenRCT2/_build/openrct2.exe, OpenRCT2/_build/openrct2-cli.exe, OpenRCT2/_build/openrct2.com", fingerprint: true, allowEmptyArchive: true
                 }
             }
         }
         failure {
-            echo "Nightly build or compatibility check failed. Please inspect console logs."
+            echo "Build failed. Check console logs."
         }
     }
 }

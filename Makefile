@@ -22,10 +22,14 @@ TOPDIR := $(shell pwd)
 PREFIX_DIR := $(TOPDIR)/build
 INSTALL_DIR := $(TOPDIR)/OpenRCT2-winxp
 CPU_CORES ?= $(shell nproc 2>/dev/null || echo 4)
-OPENRCT2_VERSION ?= v0.5.5
-PATCH_FILE ?= $(MAKE_DIR)xp-compat-$(OPENRCT2_VERSION).patch
+OPENRCT2_REPO ?= https://github.com/KTMGv5/OpenRCT2-WindowsXP.git
+OPENRCT2_BRANCH ?= winxp
+OPENRCT2_VERSION ?= $(OPENRCT2_BRANCH)
+PATCH_FILE ?= $(if $(filter winxp% %WindowsXP%,$(OPENRCT2_BRANCH)$(OPENRCT2_REPO)),,$(MAKE_DIR)xp-compat-$(OPENRCT2_VERSION).patch)
 ifeq ($(filter /%,$(PATCH_FILE)),)
-    PATCH_FILE := $(TOPDIR)/$(PATCH_FILE)
+    ifneq ($(PATCH_FILE),)
+        PATCH_FILE := $(TOPDIR)/$(PATCH_FILE)
+    endif
 endif
 
 CURL_VERSION := 8.5.0
@@ -161,11 +165,15 @@ package: install
 
 .PHONY: test-patch
 test-patch:
-	@echo "Testing patch $(PATCH_FILE) against upstream $(OPENRCT2_VERSION)..."
-	rm -rf .tmp-upstream && git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2 .tmp-upstream
-	patch --dry-run -p1 -d .tmp-upstream < $(PATCH_FILE)
-	@echo "Patch $(PATCH_FILE) applies cleanly to $(OPENRCT2_VERSION)!"
-	rm -rf .tmp-upstream
+	@if [ -n "$(PATCH_FILE)" ] && [ -f "$(PATCH_FILE)" ]; then \
+		echo "Testing patch $(PATCH_FILE) against upstream $(OPENRCT2_VERSION)..."; \
+		rm -rf .tmp-upstream && git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2 .tmp-upstream; \
+		patch --dry-run -p1 -d .tmp-upstream < $(PATCH_FILE); \
+		echo "Patch $(PATCH_FILE) applies cleanly to $(OPENRCT2_VERSION)!"; \
+		rm -rf .tmp-upstream; \
+	else \
+		echo "Building from native Windows XP fork ($(OPENRCT2_REPO) @ $(OPENRCT2_BRANCH)) — no external patch required."; \
+	fi
 
 # Removes all build artifacts (but not downloaded files)
 .PHONY: clean
@@ -178,8 +186,13 @@ distclean: clean
 	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE) $(ZSTD_ARCHIVE) $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM)
 
 $(OPENRCT2_DIR)/extracted:
-	git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2
-	patch -f -p1 -d $(@D) < $(PATCH_FILE)
+	git clone --depth 1 --branch $(OPENRCT2_BRANCH) $(OPENRCT2_REPO) $(OPENRCT2_DIR)
+	@if [ -n "$(PATCH_FILE)" ] && [ -f "$(PATCH_FILE)" ]; then \
+		echo "Applying patch $(PATCH_FILE)..."; \
+		patch -f -p1 -d $(@D) < $(PATCH_FILE); \
+	else \
+		echo "Building from native Windows XP fork (no patch needed)."; \
+	fi
 	touch $@
 
 $(OPENRCT2_DIR)/configured: $(OPENRCT2_DIR)/extracted $(CURL_DIR)/installed $(FLAC_DIR)/installed $(FREETYPE_DIR)/installed $(LIBICONV_DIR)/installed $(LIBPNG_DIR)/installed $(LIBOGG_DIR)/installed $(LIBVORBIS_DIR)/installed $(LIBZIP_DIR)/installed $(MBEDTLS_DIR)/installed $(NLOHMANNJSON_DIR)/installed $(OPENSSL_DIR)/installed $(SDL2_DIR)/installed $(WINPTHREAD_DIR)/installed $(ZLIB_DIR)/installed $(ZSTD_DIR)/installed i686-w64-mingw32-pkg-config
