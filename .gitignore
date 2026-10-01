@@ -30,4 +30,5 @@ upstream-*/
 __pycache__/
 .vscode/
 OpenRCT2-winxp/
+OpenRCT2-Windows-XP-Edition/
 
