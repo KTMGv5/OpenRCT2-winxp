@@ -20,7 +20,7 @@ CMAKE_BUILD_TYPE ?= Release
 MAKE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 TOPDIR := $(shell pwd)
 PREFIX_DIR := $(TOPDIR)/build
-INSTALL_DIR := $(TOPDIR)/OpenRCT2-WindowsXP
+INSTALL_DIR := $(TOPDIR)/OpenRCT2-portable
 CPU_CORES ?= $(shell nproc 2>/dev/null || echo 4)
 OPENRCT2_REPO ?= https://github.com/KTMGv5/OpenRCT2-WindowsXP.git
 OPENRCT2_BRANCH ?= winxp
@@ -124,7 +124,9 @@ all: $(OPENRCT2_DIR)/built
 
 DATA_VERSION ?= $(if $(filter v0.%,$(OPENRCT2_VERSION)),$(OPENRCT2_VERSION),v0.5.5)
 OPENRCT2_DATA_ARCHIVE := OpenRCT2-$(DATA_VERSION)-windows-portable-win32.zip
-PACKAGE_NAME ?= OpenRCT2-WindowsXP-$(OPENRCT2_VERSION).zip
+SHORT_SHA ?= $(shell git -C $(OPENRCT2_DIR) rev-parse --short HEAD 2>/dev/null || echo $(OPENRCT2_BRANCH))
+PACKAGE_VERSION ?= $(if $(filter v0.%,$(OPENRCT2_VERSION)),$(OPENRCT2_VERSION),develop-$(SHORT_SHA))
+PACKAGE_NAME ?= OpenRCT2-$(PACKAGE_VERSION)-windows-portable-win32.zip
 
 $(OPENRCT2_DATA_ARCHIVE):
 	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/$(DATA_VERSION)/$@
@@ -139,7 +141,6 @@ install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM)
 	rm -rf $(INSTALL_DIR) && mkdir -p $(INSTALL_DIR)
 	cp $(OPENRCT2_DIR)/_build/openrct2.exe $(INSTALL_DIR)
 	cp $(OPENRCT2_DIR)/_build/openrct2-cli.exe $(INSTALL_DIR)
-	[ -f $(OPENRCT2_DIR)/_build/openrct2.com ] && cp $(OPENRCT2_DIR)/_build/openrct2.com $(INSTALL_DIR) || true
 	[ -f $(PREFIX_DIR)/bin/SDL2.dll ] && cp $(PREFIX_DIR)/bin/SDL2.dll $(INSTALL_DIR) || true
 	[ -f $(PREFIX_DIR)/bin/libpng16.dll ] && cp $(PREFIX_DIR)/bin/libpng16.dll $(INSTALL_DIR) || true
 	[ -f $(PREFIX_DIR)/bin/libwinpthread-1.dll ] && cp $(PREFIX_DIR)/bin/libwinpthread-1.dll $(INSTALL_DIR) || true
@@ -161,7 +162,7 @@ check: $(OPENRCT2_DIR)/built
 
 .PHONY: package
 package: install
-	cd $(TOPDIR) && rm -f $(PACKAGE_NAME) && zip -r $(PACKAGE_NAME) OpenRCT2-WindowsXP
+	cd $(INSTALL_DIR) && rm -f $(TOPDIR)/$(PACKAGE_NAME) && zip -r $(TOPDIR)/$(PACKAGE_NAME) .
 
 .PHONY: test-patch
 test-patch:
@@ -178,7 +179,7 @@ test-patch:
 # Removes all build artifacts (but not downloaded files)
 .PHONY: clean
 clean:
-	$(RM) -r build i686-w64-mingw32-pkg-config $(CURL_DIR) $(FLAC_DIR) $(FREETYPE_DIR) $(GMP_DIR) $(LIBICONV_DIR) $(LIBOGG_DIR) $(LIBPNG_DIR) $(LIBTASN1_DIR) $(LIBUNISTRING_DIR) $(LIBVORBIS_DIR) $(LIBZIP_DIR) $(MBEDTLS_DIR) $(NETTLE_DIR) $(NLOHMANNJSON_DIR) $(OPENRCT2_DIR) $(OPENSSL_DIR) $(P11KIT_DIR) $(SDL2_DIR) $(WINPTHREAD_DIR) $(ZLIB_DIR) $(ZSTD_DIR) OpenRCT2-winxp OpenRCT2-WindowsXP
+	$(RM) -r build i686-w64-mingw32-pkg-config $(CURL_DIR) $(FLAC_DIR) $(FREETYPE_DIR) $(GMP_DIR) $(LIBICONV_DIR) $(LIBOGG_DIR) $(LIBPNG_DIR) $(LIBTASN1_DIR) $(LIBUNISTRING_DIR) $(LIBVORBIS_DIR) $(LIBZIP_DIR) $(MBEDTLS_DIR) $(NETTLE_DIR) $(NLOHMANNJSON_DIR) $(OPENRCT2_DIR) $(OPENSSL_DIR) $(P11KIT_DIR) $(SDL2_DIR) $(WINPTHREAD_DIR) $(ZLIB_DIR) $(ZSTD_DIR) OpenRCT2-winxp OpenRCT2-WindowsXP OpenRCT2-portable
 
 # Removes all build artifacts and downloaded files
 .PHONY: distclean
@@ -220,7 +221,6 @@ $(OPENRCT2_DIR)/built: $(OPENRCT2_DIR)/configured
 ifneq ($(CMAKE_BUILD_TYPE),Debug)
 	cd $(@D)/_build && strip openrct2.exe openrct2-cli.exe
 endif
-	cd $(@D)/_build && cp openrct2.exe openrct2.com && printf '' | dd conv=notrunc of=openrct2.com bs=1 seek=220
 	touch $@
 
 # Curl
