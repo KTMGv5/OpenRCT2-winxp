@@ -205,7 +205,7 @@ pipeline {
                                     gh release create "${TAG}" "${ZIP_FILE}" OpenRCT2/_build/openrct2.exe OpenRCT2/_build/openrct2-cli.exe \
                                         --repo "${GITHUB_REPO}" \
                                         --title "OpenRCT2 - Windows XP Edition (${TAG})" \
-                                        --notes "Native build of OpenRCT2 Windows XP Edition from commit \`${SHORT_SHA}\`. Built natively for Windows XP (NT 5.1) without binary patching. Includes modern TLS 1.2/1.3 multiplayer networking, root CA certificate store (cacert.pem), and legacy graphics driver fallbacks."
+                                        --notes "Native build of OpenRCT2 Windows XP Edition from commit ${SHORT_SHA}. Built natively for Windows XP (NT 5.1) without binary patching. Includes modern TLS 1.2/1.3 multiplayer networking, root CA certificate store (cacert.pem), and legacy graphics driver fallbacks."
                                 fi
                                 echo "GitHub release published successfully to https://github.com/${GITHUB_REPO}/releases !"
                             '''
