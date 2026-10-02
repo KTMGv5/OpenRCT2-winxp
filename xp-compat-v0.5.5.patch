@@ -36,13 +36,14 @@ diff --git a/src/openrct2-cli/CMakeLists.txt b/src/openrct2-cli/CMakeLists.txt
 index 19d41a6..cbcf898 100644
 --- a/src/openrct2-cli/CMakeLists.txt
 +++ b/src/openrct2-cli/CMakeLists.txt
-@@ -16,3 +16,11 @@ if (EMSCRIPTEN)
+@@ -16,3 +16,12 @@ if (EMSCRIPTEN)
  endif ()
  target_link_libraries(openrct2-cli libopenrct2 Threads::Threads)
  target_link_platform_libraries(openrct2-cli)
 +
 +if (WIN32)
 +    target_sources(openrct2-cli PRIVATE "${ROOT_DIR}/resources/openrct2-cli.rc")
++    target_include_directories(openrct2-cli PRIVATE "${ROOT_DIR}/resources")
 +    target_link_libraries(openrct2-cli shlwapi)
 +    if (NOT MSVC AND DEFINED NT51SHIM_SOURCE)
 +        target_sources(openrct2-cli PRIVATE "${NT51SHIM_SOURCE}")
@@ -60,12 +61,13 @@ index 710d7b4..a2a75a8 100644
          PKG_CHECK_MODULES(VORBISFILE REQUIRED IMPORTED_TARGET vorbisfile)
      endif ()
  endif ()
-@@ -67,6 +68,13 @@ else ()
+@@ -67,6 +68,14 @@ else ()
                                      ${SDL2_LDFLAGS})
  endif ()
  target_link_platform_libraries(openrct2)
 +if (WIN32)
 +    target_sources(openrct2 PRIVATE "${ROOT_DIR}/resources/OpenRCT2.rc")
++    target_include_directories(openrct2 PRIVATE "${ROOT_DIR}/resources")
 +    target_link_libraries(openrct2 comdlg32)
 +    if (NOT MSVC AND DEFINED NT51SHIM_SOURCE)
 +        target_sources(openrct2 PRIVATE "${NT51SHIM_SOURCE}")

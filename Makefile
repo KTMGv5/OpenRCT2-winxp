@@ -204,6 +204,9 @@ $(OPENRCT2_DIR)/extracted:
 	@if [ -f "$(MAKE_DIR)openrct2-cli.rc" ]; then \
 		mkdir -p $(@D)/resources && cp $(MAKE_DIR)openrct2-cli.rc $(@D)/resources/openrct2-cli.rc; \
 	fi
+	@if [ -f "$(MAKE_DIR)OpenRCT2.rc" ]; then \
+		mkdir -p $(@D)/resources && cp $(MAKE_DIR)OpenRCT2.rc $(@D)/resources/OpenRCT2.rc; \
+	fi
 ifneq ($(strip $(PATCH_FILE)),)
 	@if [ -f "$(PATCH_FILE)" ]; then \
 		echo "Applying patch $(PATCH_FILE)..."; \
