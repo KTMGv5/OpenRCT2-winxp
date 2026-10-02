@@ -128,7 +128,7 @@ pipeline {
                         else
                             git clone --depth 1 --branch ${OPENRCT2_BRANCH} ${OPENRCT2_REPO_URL} OpenRCT2
                         fi
-                        rm -f OpenRCT2/built OpenRCT2/configured
+                        rm -rf OpenRCT2/_build OpenRCT2/built OpenRCT2/configured
                     """
                 }
             }

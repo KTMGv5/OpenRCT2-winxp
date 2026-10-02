@@ -166,15 +166,17 @@ package: install
 
 .PHONY: test-patch
 test-patch:
-	@if [ -n "$(PATCH_FILE)" ] && [ -f "$(PATCH_FILE)" ]; then \
+ifneq ($(strip $(PATCH_FILE)),)
+	@if [ -f "$(PATCH_FILE)" ]; then \
 		echo "Testing patch $(PATCH_FILE) against upstream $(OPENRCT2_VERSION)..."; \
 		rm -rf .tmp-upstream && git clone --depth 1 --branch $(OPENRCT2_VERSION) https://github.com/OpenRCT2/OpenRCT2 .tmp-upstream; \
 		patch --dry-run -p1 -d .tmp-upstream < $(PATCH_FILE); \
 		echo "Patch $(PATCH_FILE) applies cleanly to $(OPENRCT2_VERSION)!"; \
 		rm -rf .tmp-upstream; \
-	else \
-		echo "Building from native Windows XP fork ($(OPENRCT2_REPO) @ $(OPENRCT2_BRANCH)) — no external patch required."; \
 	fi
+else
+	@echo "Building from native Windows XP fork ($(OPENRCT2_REPO) @ $(OPENRCT2_BRANCH)) — no external patch required."
+endif
 
 # Removes all build artifacts (but not downloaded files)
 .PHONY: clean
@@ -196,12 +198,16 @@ $(OPENRCT2_DIR)/extracted:
 	else \
 		git clone --depth 1 --branch $(OPENRCT2_BRANCH) $(OPENRCT2_REPO) $(OPENRCT2_DIR); \
 	fi
-	@if [ -n "$(PATCH_FILE)" ] && [ -f "$(PATCH_FILE)" ]; then \
+ifneq ($(strip $(PATCH_FILE)),)
+	@if [ -f "$(PATCH_FILE)" ]; then \
 		echo "Applying patch $(PATCH_FILE)..."; \
 		patch -f -p1 -d $(@D) < $(PATCH_FILE); \
 	else \
-		echo "Building from native Windows XP fork (no patch needed)."; \
+		echo "Patch file $(PATCH_FILE) not found, skipping patch."; \
 	fi
+else
+	@echo "Building from native Windows XP fork (no patch needed)."
+endif
 	touch $@
 
 $(OPENRCT2_DIR)/configured: $(OPENRCT2_DIR)/extracted $(CURL_DIR)/installed $(FLAC_DIR)/installed $(FREETYPE_DIR)/installed $(LIBICONV_DIR)/installed $(LIBPNG_DIR)/installed $(LIBOGG_DIR)/installed $(LIBVORBIS_DIR)/installed $(LIBZIP_DIR)/installed $(MBEDTLS_DIR)/installed $(NLOHMANNJSON_DIR)/installed $(OPENSSL_DIR)/installed $(SDL2_DIR)/installed $(WINPTHREAD_DIR)/installed $(ZLIB_DIR)/installed $(ZSTD_DIR)/installed i686-w64-mingw32-pkg-config

@@ -160,7 +160,7 @@ pipeline {
                     else
                         git clone --depth 1 --branch ${BRANCH} https://github.com/${GITHUB_REPO}.git OpenRCT2
                     fi
-                    rm -f OpenRCT2/built OpenRCT2/configured
+                    rm -rf OpenRCT2/_build OpenRCT2/built OpenRCT2/configured
                 """
             }
         }
