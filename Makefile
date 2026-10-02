@@ -192,13 +192,15 @@ distclean: clean
 
 $(OPENRCT2_DIR)/extracted:
 	@if [ -d "$(OPENRCT2_DIR)/.git" ]; then \
-		echo "Updating $(OPENRCT2_DIR) from $(OPENRCT2_REPO) branch $(OPENRCT2_BRANCH)..."; \
-		git -C $(OPENRCT2_DIR) reset --hard HEAD; \
-		git -C $(OPENRCT2_DIR) clean -fd; \
-		git -C $(OPENRCT2_DIR) remote set-url origin $(OPENRCT2_REPO); \
-		git -C $(OPENRCT2_DIR) fetch origin $(OPENRCT2_BRANCH) && git -C $(OPENRCT2_DIR) checkout -B $(OPENRCT2_BRANCH) FETCH_HEAD; \
+		if [ -z "$(SKIP_GIT_PULL)" ]; then \
+			echo "Updating $(OPENRCT2_DIR) from $(OPENRCT2_REPO) branch $(OPENRCT2_BRANCH)..."; \
+			git -C $(OPENRCT2_DIR) reset --hard HEAD; \
+			git -C $(OPENRCT2_DIR) clean -fd; \
+			git -C $(OPENRCT2_DIR) remote set-url origin $(OPENRCT2_REPO); \
+			git -C $(OPENRCT2_DIR) fetch origin $(OPENRCT2_BRANCH) && git -C $(OPENRCT2_DIR) checkout -B $(OPENRCT2_BRANCH) FETCH_HEAD; \
+		fi; \
 	else \
-		git clone --depth 1 --branch $(OPENRCT2_BRANCH) $(OPENRCT2_REPO) $(OPENRCT2_DIR); \
+		git clone --branch $(OPENRCT2_BRANCH) $(OPENRCT2_REPO) $(OPENRCT2_DIR); \
 	fi
 	@if [ -f "$(MAKE_DIR)icon.ico" ]; then \
 		mkdir -p $(@D)/resources/logo && cp $(MAKE_DIR)icon.ico $(@D)/resources/logo/icon.ico; \

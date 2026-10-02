@@ -25,7 +25,7 @@ pipeline {
         booleanParam(
             name: 'FORCE_BUILD',
             defaultValue: false,
-            description: 'Build even if no new commits were pushed'
+            description: 'Build even if no new commits were detected'
         )
         booleanParam(
             name: 'REUSE_BUILD_CACHE',
@@ -42,14 +42,31 @@ pipeline {
             defaultValue: 'KTMGv5/OpenRCT2-WindowsXP',
             description: 'Target GitHub repository (owner/repo)'
         )
+        string(
+            name: 'UPSTREAM_REPO',
+            defaultValue: 'https://github.com/OpenRCT2/OpenRCT2.git',
+            description: 'Official upstream OpenRCT2 repository to track'
+        )
+        string(
+            name: 'UPSTREAM_BRANCH',
+            defaultValue: 'develop',
+            description: 'Official upstream branch to track and merge'
+        )
+        booleanParam(
+            name: 'PUSH_MERGE_TO_FORK',
+            defaultValue: true,
+            description: 'Push merged upstream commits back to KTMGv5/OpenRCT2-WindowsXP'
+        )
     }
 
     environment {
-        BRANCH       = "${params.OPENRCT2_BRANCH}"
-        BUILD_TYPE   = "${params.BUILD_TYPE}"
-        GITHUB_REPO  = "${params.GITHUB_REPO}"
-        NUM_CORES    = sh(script: 'nproc 2>/dev/null || echo 4', returnStdout: true).trim()
-        BUILD_DATE   = sh(script: 'date +%Y%m%d', returnStdout: true).trim()
+        BRANCH          = "${params.OPENRCT2_BRANCH}"
+        BUILD_TYPE      = "${params.BUILD_TYPE}"
+        GITHUB_REPO     = "${params.GITHUB_REPO}"
+        UPSTREAM_REPO   = "${params.UPSTREAM_REPO}"
+        UPSTREAM_BRANCH = "${params.UPSTREAM_BRANCH}"
+        NUM_CORES       = sh(script: 'nproc 2>/dev/null || echo 4', returnStdout: true).trim()
+        BUILD_DATE      = sh(script: 'date +%Y%m%d', returnStdout: true).trim()
     }
 
     stages {
@@ -66,37 +83,47 @@ pipeline {
             }
         }
 
-        stage('Check Repository for New Commits') {
+        stage('Check Upstream & Fork for New Commits') {
             steps {
                 script {
-                    echo "Checking ${GITHUB_REPO} on branch '${BRANCH}'..."
-                    def sha = sh(
+                    echo "Checking upstream ${UPSTREAM_REPO} on branch '${UPSTREAM_BRANCH}'..."
+                    def upstreamSha = sh(
+                        script: "git ls-remote ${UPSTREAM_REPO} refs/heads/${UPSTREAM_BRANCH} | awk '{print \$1}'",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Checking fork https://github.com/${GITHUB_REPO}.git on branch '${BRANCH}'..."
+                    def forkSha = sh(
                         script: "git ls-remote https://github.com/${GITHUB_REPO}.git refs/heads/${BRANCH} | awk '{print \$1}'",
                         returnStdout: true
                     ).trim()
 
-                    if (!sha) {
+                    if (!forkSha) {
                         error("Could not fetch remote commit SHA for branch ${BRANCH} from ${GITHUB_REPO}")
                     }
 
-                    def shortSha = sha.take(7)
-                    env.UPSTREAM_SHA = sha
-                    env.SHORT_SHA = shortSha
+                    def shortForkSha = forkSha.take(7)
+                    def shortUpstreamSha = upstreamSha ? upstreamSha.take(7) : "unknown"
+
+                    env.UPSTREAM_SHA = upstreamSha
+                    env.FORK_SHA = forkSha
+                    env.SHORT_FORK_SHA = shortForkSha
 
                     def lastBuiltSha = ""
                     if (fileExists(".last_built_develop_sha")) {
                         lastBuiltSha = readFile(".last_built_develop_sha").trim()
                     }
 
-                    echo "Latest commit on ${BRANCH}: ${sha} (${shortSha})"
-                    echo "Last built commit:           ${lastBuiltSha}"
+                    echo "Latest upstream commit: ${upstreamSha} (${shortUpstreamSha})"
+                    echo "Latest fork commit:     ${forkSha} (${shortForkSha})"
+                    echo "Last recorded commit(s):\n${lastBuiltSha}"
 
                     // Check if GitHub Releases already contains a release for this commit
                     def alreadyPublished = false
                     try {
                         withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
                             def releaseCheck = sh(
-                                script: "gh release view develop --repo ${GITHUB_REPO} 2>/dev/null | grep -q '${shortSha}'",
+                                script: "gh release view develop --repo ${GITHUB_REPO} 2>/dev/null | grep -q '${shortForkSha}'",
                                 returnStatus: true
                             )
                             if (releaseCheck == 0) {
@@ -105,20 +132,21 @@ pipeline {
                         }
                     } catch (Exception ignored) {}
 
-                    if ((sha == lastBuiltSha || alreadyPublished) && !params.FORCE_BUILD) {
+                    def isRecorded = lastBuiltSha.contains(forkSha) && (upstreamSha ? lastBuiltSha.contains(upstreamSha) : true)
+
+                    if (isRecorded && alreadyPublished && !params.FORCE_BUILD) {
                         echo "=================================================="
-                        echo "Repository ${GITHUB_REPO} has no new commits since last build."
-                        echo "Commit ${shortSha} is already built and published."
+                        echo "Both upstream ${UPSTREAM_REPO} and fork ${GITHUB_REPO} have no new commits."
+                        echo "Commit ${shortForkSha} is already built and published."
                         echo "Skipping build (use FORCE_BUILD=true to override)."
                         echo "=================================================="
                         env.SKIP_BUILD = "true"
-                        currentBuild.displayName = "#${BUILD_NUMBER} - ${shortSha} (skipped: up-to-date)"
-                        currentBuild.description = "Branch ${BRANCH} commit ${shortSha} is already built"
+                        currentBuild.displayName = "#${BUILD_NUMBER} - ${shortForkSha} (skipped: up-to-date)"
+                        currentBuild.description = "Branch ${BRANCH} is up to date with upstream"
                     } else {
                         env.SKIP_BUILD = "false"
-                        env.NIGHTLY_PACKAGE = "OpenRCT2-develop-${shortSha}-windows-portable-win32.zip"
-                        currentBuild.displayName = "#${BUILD_NUMBER} - ${BRANCH} (${shortSha})"
-                        currentBuild.description = "Building ${GITHUB_REPO} @ ${shortSha}"
+                        currentBuild.displayName = "#${BUILD_NUMBER} - ${BRANCH} (${shortForkSha})"
+                        currentBuild.description = "Syncing & building ${GITHUB_REPO} @ ${shortForkSha}"
                     }
                 }
             }
@@ -144,23 +172,51 @@ pipeline {
             }
         }
 
-        stage('Verify Source') {
+        stage('Sync & Merge Upstream Source') {
             when {
                 expression { return env.SKIP_BUILD != "true" }
             }
             steps {
-                echo "Syncing source for ${GITHUB_REPO} @ ${BRANCH} (${env.SHORT_SHA})..."
+                echo "Syncing ${GITHUB_REPO} @ ${BRANCH} and tracking upstream ${UPSTREAM_REPO} (${UPSTREAM_BRANCH})..."
                 sh """
                     if [ -d "OpenRCT2/.git" ]; then
                         git -C OpenRCT2 reset --hard HEAD
                         git -C OpenRCT2 clean -fd
                         git -C OpenRCT2 remote set-url origin https://github.com/${GITHUB_REPO}.git
+                        if [ -f "OpenRCT2/.git/shallow" ]; then
+                            echo "Unshallowing repository for merge compatibility..."
+                            git -C OpenRCT2 fetch --unshallow origin || true
+                        fi
                         git -C OpenRCT2 fetch origin ${BRANCH}
                         git -C OpenRCT2 checkout -B ${BRANCH} FETCH_HEAD
                     else
-                        git clone --depth 1 --branch ${BRANCH} https://github.com/${GITHUB_REPO}.git OpenRCT2
+                        git clone --branch ${BRANCH} https://github.com/${GITHUB_REPO}.git OpenRCT2
                     fi
+
+                    # Configure upstream remote
+                    if ! git -C OpenRCT2 remote | grep -q "^upstream\$"; then
+                        git -C OpenRCT2 remote add upstream "${UPSTREAM_REPO}"
+                    else
+                        git -C OpenRCT2 remote set-url upstream "${UPSTREAM_REPO}"
+                    fi
+
+                    echo "Fetching upstream ${UPSTREAM_REPO} (${UPSTREAM_BRANCH})..."
+                    git -C OpenRCT2 fetch upstream "${UPSTREAM_BRANCH}"
+
+                    UPSTREAM_AHEAD=\$(git -C OpenRCT2 rev-list HEAD..upstream/${UPSTREAM_BRANCH} --count 2>/dev/null || echo 0)
+                    echo "Upstream commits ahead: \${UPSTREAM_AHEAD}"
+
+                    if [ "\${UPSTREAM_AHEAD}" -gt 0 ]; then
+                        echo "Merging \${UPSTREAM_AHEAD} upstream commit(s) into ${BRANCH}..."
+                        git -C OpenRCT2 -c user.name="Jenkins CI" -c user.email="jenkins@openrct2-xp.local" \
+                            merge upstream/${UPSTREAM_BRANCH} -m "chore(sync): Merge upstream OpenRCT2:${UPSTREAM_BRANCH} into ${BRANCH}"
+                        echo "Merge successful."
+                    else
+                        echo "Branch ${BRANCH} is already up to date with upstream ${UPSTREAM_BRANCH}."
+                    fi
+
                     rm -rf OpenRCT2/_build OpenRCT2/built OpenRCT2/configured
+                    touch OpenRCT2/extracted
                 """
             }
         }
@@ -170,15 +226,24 @@ pipeline {
                 expression { return env.SKIP_BUILD != "true" }
             }
             steps {
-                echo "Compiling OpenRCT2 ${BRANCH} (${env.SHORT_SHA}) from ${GITHUB_REPO} with ${NUM_CORES} parallel cores..."
-                sh """
-                    make all \
-                        OPENRCT2_REPO="https://github.com/${GITHUB_REPO}.git" \
-                        OPENRCT2_BRANCH="${BRANCH}" \
-                        OPENRCT2_VERSION="${BRANCH}" \
-                        CMAKE_BUILD_TYPE=${BUILD_TYPE} \
-                        CPU_CORES=${NUM_CORES}
-                """
+                script {
+                    def finalSha = sh(script: "git -C OpenRCT2 rev-parse --short HEAD", returnStdout: true).trim()
+                    env.FINAL_SHORT_SHA = finalSha
+                    env.NIGHTLY_PACKAGE = "OpenRCT2-develop-${finalSha}-windows-portable-win32.zip"
+                    currentBuild.displayName = "#${BUILD_NUMBER} - ${BRANCH} (${finalSha})"
+                    currentBuild.description = "Building ${GITHUB_REPO} @ ${finalSha}"
+
+                    echo "Compiling OpenRCT2 ${BRANCH} (${finalSha}) with ${NUM_CORES} parallel cores..."
+                    sh """
+                        make all \
+                            OPENRCT2_REPO="https://github.com/${GITHUB_REPO}.git" \
+                            OPENRCT2_BRANCH="${BRANCH}" \
+                            OPENRCT2_VERSION="${BRANCH}" \
+                            SKIP_GIT_PULL=1 \
+                            CMAKE_BUILD_TYPE=${BUILD_TYPE} \
+                            CPU_CORES=${NUM_CORES}
+                    """
+                }
             }
         }
 
@@ -192,8 +257,43 @@ pipeline {
                     make check \
                         OPENRCT2_REPO="https://github.com/${GITHUB_REPO}.git" \
                         OPENRCT2_BRANCH="${BRANCH}" \
-                        OPENRCT2_VERSION="${BRANCH}"
+                        OPENRCT2_VERSION="${BRANCH}" \
+                        SKIP_GIT_PULL=1
                 """
+            }
+        }
+
+        stage('Push Merged Upstream Commits to Fork') {
+            when {
+                allOf {
+                    expression { return env.SKIP_BUILD != "true" }
+                    expression { return params.PUSH_MERGE_TO_FORK == true }
+                }
+            }
+            steps {
+                script {
+                    echo "Checking if merged commits need pushing to ${GITHUB_REPO}..."
+                    try {
+                        withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
+                            sh """
+                                LOCAL_SHA=\$(git -C OpenRCT2 rev-parse HEAD)
+                                REMOTE_SHA=\$(git -C OpenRCT2 rev-parse origin/${BRANCH} 2>/dev/null || echo "")
+                                echo "Local HEAD:  \${LOCAL_SHA}"
+                                echo "Remote SHA:  \${REMOTE_SHA}"
+
+                                if [ "\${LOCAL_SHA}" != "\${REMOTE_SHA}" ]; then
+                                    echo "Pushing verified merged branch to https://github.com/${GITHUB_REPO}.git (${BRANCH})..."
+                                    git -C OpenRCT2 push https://x-access-token:\${GH_TOKEN}@github.com/${GITHUB_REPO}.git ${BRANCH}
+                                    echo "Fork successfully synced with upstream commits!"
+                                else
+                                    echo "Fork is already in sync with local HEAD."
+                                fi
+                            """
+                        }
+                    } catch (Exception e) {
+                        echo "Notice: Could not push to ${GITHUB_REPO}: ${e.getMessage()}"
+                    }
+                }
             }
         }
 
@@ -208,6 +308,7 @@ pipeline {
                         OPENRCT2_REPO="https://github.com/${GITHUB_REPO}.git" \
                         OPENRCT2_BRANCH="${BRANCH}" \
                         OPENRCT2_VERSION="${BRANCH}" \
+                        SKIP_GIT_PULL=1 \
                         PACKAGE_NAME="${env.NIGHTLY_PACKAGE}"
                 """
                 echo "Verifying mandatory TLS certificate store (cacert.pem)..."
@@ -236,7 +337,7 @@ pipeline {
                         withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
                             sh """
                                 TAG="develop"
-                                RELEASE_TITLE="OpenRCT2 develop (${env.SHORT_SHA}) - Windows XP Edition"
+                                RELEASE_TITLE="OpenRCT2 develop (${env.FINAL_SHORT_SHA}) - Windows XP Edition"
                                 
                                 echo "Publishing artifact: ${env.NIGHTLY_PACKAGE} to ${GITHUB_REPO}..."
                                 
@@ -247,7 +348,7 @@ pipeline {
                                 gh release create "\${TAG}" "${env.NIGHTLY_PACKAGE}" OpenRCT2/_build/openrct2.exe OpenRCT2/_build/openrct2-cli.exe \
                                     --repo "${GITHUB_REPO}" \
                                     --title "\${RELEASE_TITLE}" \
-                                    --notes "Native development build of OpenRCT2 Windows XP Edition from commit ${env.SHORT_SHA}. Built natively for Windows XP (NT 5.1) without binary patching. Includes modern TLS 1.2/1.3 multiplayer networking, root CA certificate store (cacert.pem), and legacy graphics driver fallbacks." \
+                                    --notes "Native development build of OpenRCT2 Windows XP Edition tracking official upstream OpenRCT2:develop (commit ${env.FINAL_SHORT_SHA}). Built natively for Windows XP (NT 5.1) without binary patching. Fully statically linked (no external libgcc/libstdc++/winpthread DLL dependencies). Includes modern TLS 1.2/1.3 multiplayer networking, root CA certificate store (cacert.pem), and legacy graphics driver fallbacks." \
                                     --prerelease
 
                                 echo "Release published successfully to https://github.com/${GITHUB_REPO}/releases !"
@@ -267,8 +368,9 @@ pipeline {
             }
             steps {
                 script {
-                    writeFile file: ".last_built_develop_sha", text: env.UPSTREAM_SHA
-                    echo "Recorded commit ${env.UPSTREAM_SHA} as successfully built."
+                    def recordText = "${env.FINAL_SHORT_SHA}\n${env.FORK_SHA}\n${env.UPSTREAM_SHA}"
+                    writeFile file: ".last_built_develop_sha", text: recordText
+                    echo "Recorded successfully built commits:\n${recordText}"
                 }
             }
         }
@@ -278,7 +380,7 @@ pipeline {
         success {
             script {
                 if (env.SKIP_BUILD != "true") {
-                    echo "Build and XP verification passed!"
+                    echo "Build, upstream sync, and XP verification passed!"
                     archiveArtifacts artifacts: "OpenRCT2-*-windows-portable-win32.zip, OpenRCT2/_build/openrct2.exe, OpenRCT2/_build/openrct2-cli.exe", fingerprint: true, allowEmptyArchive: true
                 }
             }
