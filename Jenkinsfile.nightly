@@ -149,7 +149,14 @@ pipeline {
                 expression { return env.SKIP_BUILD != "true" }
             }
             steps {
-                echo "Building directly from native Windows XP fork (${GITHUB_REPO} @ ${BRANCH}). No patching needed."
+                echo "Syncing source for ${GITHUB_REPO} @ ${BRANCH} (${env.SHORT_SHA})..."
+                sh """
+                    if [ -d "OpenRCT2/.git" ]; then
+                        git -C OpenRCT2 fetch origin ${BRANCH}
+                        git -C OpenRCT2 checkout FETCH_HEAD
+                    fi
+                    rm -f OpenRCT2/built OpenRCT2/configured
+                """
             }
         }
 

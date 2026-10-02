@@ -118,6 +118,13 @@ pipeline {
                         echo "Testing patch application against ${OPENRCT2_BRANCH}..."
                         sh "make test-patch OPENRCT2_REPO=${OPENRCT2_REPO_URL} OPENRCT2_BRANCH=${OPENRCT2_BRANCH} PATCH_FILE=\"${env.RESOLVED_PATCH}\""
                     }
+                    sh '''
+                        if [ -d "OpenRCT2/.git" ]; then
+                            git -C OpenRCT2 fetch origin ${OPENRCT2_BRANCH}
+                            git -C OpenRCT2 checkout FETCH_HEAD
+                        fi
+                        rm -f OpenRCT2/built OpenRCT2/configured
+                    '''
                 }
             }
         }
