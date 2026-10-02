@@ -146,6 +146,8 @@ install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM)
 	[ -f $(PREFIX_DIR)/bin/libwinpthread-1.dll ] && cp $(PREFIX_DIR)/bin/libwinpthread-1.dll $(INSTALL_DIR) || true
 	[ -f $(PREFIX_DIR)/bin/libzip.dll ] && cp $(PREFIX_DIR)/bin/libzip.dll $(INSTALL_DIR) || true
 	[ -f $(PREFIX_DIR)/bin/libzstd.dll ] && cp $(PREFIX_DIR)/bin/libzstd.dll $(INSTALL_DIR) || true
+	[ -f /usr/lib/gcc/i686-w64-mingw32/13-posix/libgcc_s_dw2-1.dll ] && cp /usr/lib/gcc/i686-w64-mingw32/13-posix/libgcc_s_dw2-1.dll $(INSTALL_DIR) || true
+	[ -f /usr/lib/gcc/i686-w64-mingw32/13-posix/libstdc++-6.dll ] && cp /usr/lib/gcc/i686-w64-mingw32/13-posix/libstdc++-6.dll $(INSTALL_DIR) || true
 	cp $(CACERT_PEM) $(INSTALL_DIR)/cacert.pem
 	cp -r $(OPENRCT2_DIR)/data $(INSTALL_DIR)
 	unzip -o $(OPENRCT2_DATA_ARCHIVE) "data/g2.dat" "data/fonts.dat" "data/palettes.dat" "data/tracks.dat" "data/object/*" "data/sequence/*" -d $(INSTALL_DIR)
@@ -230,7 +232,7 @@ $(OPENRCT2_DIR)/configured: $(OPENRCT2_DIR)/extracted $(CURL_DIR)/installed $(FL
 		-DDOWNLOAD_OPENMSX=OFF \
 		-DDOWNLOAD_OPENSFX=OFF \
 		-DDOWNLOAD_TITLE_SEQUENCES=OFF \
-		-DCMAKE_EXE_LINKER_FLAGS="-L$(PREFIX_DIR)/lib -Wl,--major-os-version,5,--minor-os-version,1,--major-subsystem-version,5,--minor-subsystem-version,1" \
+		-DCMAKE_EXE_LINKER_FLAGS="-L$(PREFIX_DIR)/lib -static -static-libgcc -static-libstdc++ -Wl,--major-os-version,5,--minor-os-version,1,--major-subsystem-version,5,--minor-subsystem-version,1" \
 		-DPKG_CONFIG_EXECUTABLE="$(TOPDIR)/i686-w64-mingw32-pkg-config" \
 		-DSTATIC=$(if $(STATIC),ON,OFF) \
 		-DPORTABLE=ON \
