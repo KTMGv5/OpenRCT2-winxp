@@ -11,6 +11,14 @@ index 871e16c..9c609cb 100644
      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas -Wno-missing-braces -Wno-comment -Wnonnull -Wno-unused-parameter -Wno-attributes")
      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG=${DEBUG_LEVEL}")
  
+@@ -388,6 +388,6 @@
+ 
+ if (MINGW)
+-   add_definitions(-fstack-protector-strong)
++   add_compile_options($<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:-fstack-protector-strong>)
+ endif ()
+ 
+ # Include sub-projects
 diff --git a/CMakeLists_mingw.txt b/CMakeLists_mingw.txt
 index 830c503..65253a5 100644
 --- a/CMakeLists_mingw.txt
@@ -28,12 +36,13 @@ diff --git a/src/openrct2-cli/CMakeLists.txt b/src/openrct2-cli/CMakeLists.txt
 index 19d41a6..cbcf898 100644
 --- a/src/openrct2-cli/CMakeLists.txt
 +++ b/src/openrct2-cli/CMakeLists.txt
-@@ -16,3 +16,10 @@ if (EMSCRIPTEN)
+@@ -16,3 +16,11 @@ if (EMSCRIPTEN)
  endif ()
  target_link_libraries(openrct2-cli libopenrct2 Threads::Threads)
  target_link_platform_libraries(openrct2-cli)
 +
 +if (WIN32)
++    target_sources(openrct2-cli PRIVATE "${ROOT_DIR}/resources/openrct2-cli.rc")
 +    target_link_libraries(openrct2-cli shlwapi)
 +    if (NOT MSVC AND DEFINED NT51SHIM_SOURCE)
 +        target_sources(openrct2-cli PRIVATE "${NT51SHIM_SOURCE}")
@@ -51,11 +60,12 @@ index 710d7b4..a2a75a8 100644
          PKG_CHECK_MODULES(VORBISFILE REQUIRED IMPORTED_TARGET vorbisfile)
      endif ()
  endif ()
-@@ -67,6 +68,12 @@ else ()
+@@ -67,6 +68,13 @@ else ()
                                      ${SDL2_LDFLAGS})
  endif ()
  target_link_platform_libraries(openrct2)
 +if (WIN32)
++    target_sources(openrct2 PRIVATE "${ROOT_DIR}/resources/OpenRCT2.rc")
 +    target_link_libraries(openrct2 comdlg32)
 +    if (NOT MSVC AND DEFINED NT51SHIM_SOURCE)
 +        target_sources(openrct2 PRIVATE "${NT51SHIM_SOURCE}")
@@ -64,7 +74,7 @@ index 710d7b4..a2a75a8 100644
  
  if (NOT DISABLE_FLAC)
      if (NOT MSVC AND NOT WIN32)
-@@ -80,7 +87,7 @@ if (NOT DISABLE_VORBIS)
+@@ -80,7 +88,7 @@ if (NOT DISABLE_VORBIS)
      if (NOT MSVC AND NOT WIN32 AND NOT EMSCRIPTEN)
          target_link_libraries(openrct2 PkgConfig::OGG PkgConfig::VORBISFILE)
      else ()
@@ -86,7 +96,16 @@ index ec60ab8..ef53156 100644
      #undef CreateWindow
  // clang-format on
  
-@@ -127,70 +129,53 @@ namespace OpenRCT2::Ui
+@@ -83,7 +85,8 @@ namespace OpenRCT2::Ui
+                     HWND hwnd = GetHWND(window);
+                     if (hwnd != nullptr)
+                     {
+                         SendMessage(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
++                        SendMessage(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
+                     }
+                 }
+             }
+@@ -127,70 +130,53 @@ namespace OpenRCT2::Ui
          std::string ShowFileDialogInternal(SDL_Window* window, const FileDialogDesc& desc, bool isFolder)
          {
              std::string resultFilename;

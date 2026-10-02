@@ -198,6 +198,12 @@ $(OPENRCT2_DIR)/extracted:
 	else \
 		git clone --depth 1 --branch $(OPENRCT2_BRANCH) $(OPENRCT2_REPO) $(OPENRCT2_DIR); \
 	fi
+	@if [ -f "$(MAKE_DIR)icon.ico" ]; then \
+		mkdir -p $(@D)/resources/logo && cp $(MAKE_DIR)icon.ico $(@D)/resources/logo/icon.ico; \
+	fi
+	@if [ -f "$(MAKE_DIR)openrct2-cli.rc" ]; then \
+		mkdir -p $(@D)/resources && cp $(MAKE_DIR)openrct2-cli.rc $(@D)/resources/openrct2-cli.rc; \
+	fi
 ifneq ($(strip $(PATCH_FILE)),)
 	@if [ -f "$(PATCH_FILE)" ]; then \
 		echo "Applying patch $(PATCH_FILE)..."; \
