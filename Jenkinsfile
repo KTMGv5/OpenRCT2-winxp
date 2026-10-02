@@ -120,6 +120,8 @@ pipeline {
                     }
                     sh """
                         if [ -d "OpenRCT2/.git" ]; then
+                            git -C OpenRCT2 reset --hard HEAD
+                            git -C OpenRCT2 clean -fd
                             git -C OpenRCT2 remote set-url origin ${OPENRCT2_REPO_URL}
                             git -C OpenRCT2 fetch origin ${OPENRCT2_BRANCH}
                             git -C OpenRCT2 checkout -B ${OPENRCT2_BRANCH} FETCH_HEAD
