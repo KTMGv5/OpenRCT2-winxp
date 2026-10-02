@@ -118,13 +118,16 @@ pipeline {
                         echo "Testing patch application against ${OPENRCT2_BRANCH}..."
                         sh "make test-patch OPENRCT2_REPO=${OPENRCT2_REPO_URL} OPENRCT2_BRANCH=${OPENRCT2_BRANCH} PATCH_FILE=\"${env.RESOLVED_PATCH}\""
                     }
-                    sh '''
+                    sh """
                         if [ -d "OpenRCT2/.git" ]; then
+                            git -C OpenRCT2 remote set-url origin ${OPENRCT2_REPO_URL}
                             git -C OpenRCT2 fetch origin ${OPENRCT2_BRANCH}
-                            git -C OpenRCT2 checkout FETCH_HEAD
+                            git -C OpenRCT2 checkout -B ${OPENRCT2_BRANCH} FETCH_HEAD
+                        else
+                            git clone --depth 1 --branch ${OPENRCT2_BRANCH} ${OPENRCT2_REPO_URL} OpenRCT2
                         fi
                         rm -f OpenRCT2/built OpenRCT2/configured
-                    '''
+                    """
                 }
             }
         }

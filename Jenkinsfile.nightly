@@ -152,8 +152,11 @@ pipeline {
                 echo "Syncing source for ${GITHUB_REPO} @ ${BRANCH} (${env.SHORT_SHA})..."
                 sh """
                     if [ -d "OpenRCT2/.git" ]; then
+                        git -C OpenRCT2 remote set-url origin https://github.com/${GITHUB_REPO}.git
                         git -C OpenRCT2 fetch origin ${BRANCH}
-                        git -C OpenRCT2 checkout FETCH_HEAD
+                        git -C OpenRCT2 checkout -B ${BRANCH} FETCH_HEAD
+                    else
+                        git clone --depth 1 --branch ${BRANCH} https://github.com/${GITHUB_REPO}.git OpenRCT2
                     fi
                     rm -f OpenRCT2/built OpenRCT2/configured
                 """
