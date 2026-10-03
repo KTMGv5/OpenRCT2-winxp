@@ -128,6 +128,28 @@ SHORT_SHA ?= $(shell git -C $(OPENRCT2_DIR) rev-parse --short HEAD 2>/dev/null |
 PACKAGE_VERSION ?= $(if $(filter v0.%,$(OPENRCT2_VERSION)),$(OPENRCT2_VERSION),develop-$(SHORT_SHA))
 PACKAGE_NAME ?= OpenRCT2-$(PACKAGE_VERSION)-windows-portable-win32.zip
 
+OBJECTS_URL = $(shell python3 -c "import json; print(json.load(open('$(OPENRCT2_DIR)/assets.json'))['objects']['url'])" 2>/dev/null || echo "https://github.com/OpenRCT2/objects/releases/download/v1.8.0/objects.zip")
+TITLE_SEQUENCES_URL = $(shell python3 -c "import json; print(json.load(open('$(OPENRCT2_DIR)/assets.json'))['title-sequences']['url'])" 2>/dev/null || echo "https://github.com/OpenRCT2/title-sequences/releases/download/v0.4.26/title-sequences.zip")
+OPENMUSIC_URL = $(shell python3 -c "import json; print(json.load(open('$(OPENRCT2_DIR)/assets.json'))['openmusic']['url'])" 2>/dev/null || echo "https://github.com/OpenRCT2/OpenMusic/releases/download/v1.6.1/openmusic.zip")
+OPENSOUND_URL = $(shell python3 -c "import json; print(json.load(open('$(OPENRCT2_DIR)/assets.json'))['opensfx']['url'])" 2>/dev/null || echo "https://github.com/OpenRCT2/OpenSoundEffects/releases/download/v1.0.6/opensound.zip")
+
+OBJECTS_ZIP := objects.zip
+TITLE_SEQUENCES_ZIP := title-sequences.zip
+OPENMUSIC_ZIP := openmusic.zip
+OPENSOUND_ZIP := opensound.zip
+
+$(OBJECTS_ZIP):
+	wget -c "$(OBJECTS_URL)" -O $@
+
+$(TITLE_SEQUENCES_ZIP):
+	wget -c "$(TITLE_SEQUENCES_URL)" -O $@
+
+$(OPENMUSIC_ZIP):
+	wget -c "$(OPENMUSIC_URL)" -O $@
+
+$(OPENSOUND_ZIP):
+	wget -c "$(OPENSOUND_URL)" -O $@
+
 $(OPENRCT2_DATA_ARCHIVE):
 	wget -c https://github.com/OpenRCT2/OpenRCT2/releases/download/$(DATA_VERSION)/$@
 
@@ -137,7 +159,7 @@ $(CACERT_PEM):
 	wget -c https://curl.se/ca/cacert.pem -O $@
 
 .PHONY: install
-install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM)
+install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM) $(OBJECTS_ZIP) $(TITLE_SEQUENCES_ZIP) $(OPENMUSIC_ZIP) $(OPENSOUND_ZIP)
 	rm -rf $(INSTALL_DIR) && mkdir -p $(INSTALL_DIR)
 	cp $(OPENRCT2_DIR)/_build/openrct2.exe $(INSTALL_DIR)
 	cp $(OPENRCT2_DIR)/_build/openrct2-cli.exe $(INSTALL_DIR)
@@ -150,7 +172,11 @@ install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM)
 	[ -f /usr/lib/gcc/i686-w64-mingw32/13-posix/libstdc++-6.dll ] && cp /usr/lib/gcc/i686-w64-mingw32/13-posix/libstdc++-6.dll $(INSTALL_DIR) || true
 	cp $(CACERT_PEM) $(INSTALL_DIR)/cacert.pem
 	cp -r $(OPENRCT2_DIR)/data $(INSTALL_DIR)
-	unzip -o $(OPENRCT2_DATA_ARCHIVE) "data/g2.dat" "data/fonts.dat" "data/palettes.dat" "data/tracks.dat" "data/object/*" "data/sequence/*" -d $(INSTALL_DIR)
+	unzip -o $(OPENRCT2_DATA_ARCHIVE) "data/g2.dat" "data/fonts.dat" "data/palettes.dat" "data/tracks.dat" -d $(INSTALL_DIR)
+	mkdir -p $(INSTALL_DIR)/data/object && unzip -o $(OBJECTS_ZIP) -d $(INSTALL_DIR)/data/object
+	mkdir -p $(INSTALL_DIR)/data/sequence && unzip -o $(TITLE_SEQUENCES_ZIP) -d $(INSTALL_DIR)/data/sequence
+	mkdir -p $(INSTALL_DIR)/data && unzip -o $(OPENMUSIC_ZIP) -d $(INSTALL_DIR)/data
+	mkdir -p $(INSTALL_DIR)/data && unzip -o $(OPENSOUND_ZIP) -d $(INSTALL_DIR)/data
 
 .PHONY: check
 check: $(OPENRCT2_DIR)/built
@@ -188,7 +214,7 @@ clean:
 # Removes all build artifacts and downloaded files
 .PHONY: distclean
 distclean: clean
-	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE) $(ZSTD_ARCHIVE) $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM)
+	$(RM) $(CURL_ARCHIVE) $(FLAC_ARCHIVE) $(FREETYPE_ARCHIVE) $(GMP_ARCHIVE) $(LIBICONV_ARCHIVE) $(LIBOGG_ARCHIVE) $(LIBPNG_ARCHIVE) $(LIBTASN1_ARCHIVE) $(LIBUNISTRING_ARCHIVE) $(LIBVORBIS_ARCHIVE) $(LIBZIP_ARCHIVE) $(MBEDTLS_ARCHIVE) $(NETTLE_ARCHIVE) $(NLOHMANNJSON_ARCHIVE) $(OPENSSL_ARCHIVE) $(P11KIT_ARCHIVE) $(SDL2_ARCHIVE) $(WINPTHREAD_ARCHIVE) $(ZLIB_ARCHIVE) $(ZSTD_ARCHIVE) $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM) $(OBJECTS_ZIP) $(TITLE_SEQUENCES_ZIP) $(OPENMUSIC_ZIP) $(OPENSOUND_ZIP)
 
 $(OPENRCT2_DIR)/extracted:
 	@if [ -d "$(OPENRCT2_DIR)/.git" ]; then \

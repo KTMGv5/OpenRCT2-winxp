@@ -311,12 +311,18 @@ pipeline {
                         SKIP_GIT_PULL=1 \
                         PACKAGE_NAME="${env.NIGHTLY_PACKAGE}"
                 """
-                echo "Verifying mandatory TLS certificate store (cacert.pem)..."
+                echo "Verifying mandatory TLS certificate store (cacert.pem) and core objects..."
                 sh """
                     if unzip -l "${env.NIGHTLY_PACKAGE}" | grep -q "cacert.pem"; then
                         echo "[PASS] cacert.pem verified inside package!"
                     else
                         echo "[FAIL] FATAL ERROR: cacert.pem is missing from the package!" >&2
+                        exit 1
+                    fi
+                    if unzip -l "${env.NIGHTLY_PACKAGE}" | grep -q "rct2.terrain_surface.grid"; then
+                        echo "[PASS] rct2.terrain_surface.grid verified inside package!"
+                    else
+                        echo "[FAIL] FATAL ERROR: rct2.terrain_surface.grid is missing from the package!" >&2
                         exit 1
                     fi
                 """

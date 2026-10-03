@@ -172,7 +172,7 @@ pipeline {
                         OPENRCT2_VERSION="${OPENRCT2_BRANCH}" \
                         PATCH_FILE="${env.RESOLVED_PATCH}"
                 """
-                echo "Verifying mandatory TLS certificate store (cacert.pem)..."
+                echo "Verifying mandatory TLS certificate store (cacert.pem) and core objects..."
                 sh '''
                     ZIP_FILE=$(ls OpenRCT2-*-windows-portable-win32.zip 2>/dev/null | head -n 1)
                     if [ -z "${ZIP_FILE}" ]; then
@@ -184,6 +184,12 @@ pipeline {
                         echo "[PASS] cacert.pem verified inside release package!"
                     else
                         echo "[FAIL] FATAL ERROR: cacert.pem is missing from the package!" >&2
+                        exit 1
+                    fi
+                    if unzip -l "${ZIP_FILE}" | grep -q "rct2.terrain_surface.grid"; then
+                        echo "[PASS] rct2.terrain_surface.grid verified inside release package!"
+                    else
+                        echo "[FAIL] FATAL ERROR: rct2.terrain_surface.grid is missing from the package!" >&2
                         exit 1
                     fi
                 '''
