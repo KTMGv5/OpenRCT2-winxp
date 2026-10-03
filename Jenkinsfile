@@ -166,6 +166,7 @@ pipeline {
             steps {
                 echo "Packaging portable Windows XP release zip..."
                 sh """
+                    rm -f OpenRCT2-*-windows-portable-win32.zip
                     make package \
                         OPENRCT2_REPO="${OPENRCT2_REPO_URL}" \
                         OPENRCT2_BRANCH="${OPENRCT2_BRANCH}" \
@@ -174,7 +175,15 @@ pipeline {
                 """
                 echo "Verifying mandatory TLS certificate store (cacert.pem) and core objects..."
                 sh '''
-                    ZIP_FILE=$(ls OpenRCT2-*-windows-portable-win32.zip 2>/dev/null | head -n 1)
+                    SHORT_SHA=$(git -C OpenRCT2 rev-parse --short HEAD 2>/dev/null || echo "${OPENRCT2_BRANCH}")
+                    if echo "${OPENRCT2_BRANCH}" | grep -q "^v0\\."; then
+                        ZIP_FILE="OpenRCT2-${OPENRCT2_BRANCH}-windows-portable-win32.zip"
+                    else
+                        ZIP_FILE="OpenRCT2-develop-${SHORT_SHA}-windows-portable-win32.zip"
+                    fi
+                    if [ ! -f "${ZIP_FILE}" ]; then
+                        ZIP_FILE=$(ls -t OpenRCT2-*-windows-portable-win32.zip 2>/dev/null | head -n 1)
+                    fi
                     if [ -z "${ZIP_FILE}" ]; then
                         echo "Error: No release package found." >&2
                         exit 1
@@ -207,23 +216,27 @@ pipeline {
                         withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
                             sh '''
                                 SHORT_SHA=$(git -C OpenRCT2 rev-parse --short HEAD 2>/dev/null || echo "${OPENRCT2_BRANCH}")
-                                ZIP_FILE=$(ls OpenRCT2-*-windows-portable-win32.zip 2>/dev/null | head -n 1)
-                                if [ -z "${ZIP_FILE}" ]; then
-                                    echo "Error: No release zip found." >&2
-                                    exit 1
-                                fi
-
                                 if echo "${OPENRCT2_BRANCH}" | grep -q "^v0\\."; then
                                     TAG="${OPENRCT2_BRANCH}"
                                     TITLE="OpenRCT2 ${TAG} - Windows XP Edition"
+                                    ZIP_FILE="OpenRCT2-${OPENRCT2_BRANCH}-windows-portable-win32.zip"
                                     PRERELEASE_OPT=""
                                     echo "Publishing stable release: ${TAG}"
                                 else
                                     TAG="develop"
                                     TITLE="OpenRCT2 develop (${SHORT_SHA}) - Windows XP Edition"
+                                    ZIP_FILE="OpenRCT2-develop-${SHORT_SHA}-windows-portable-win32.zip"
                                     PRERELEASE_OPT="--prerelease"
                                     echo "Publishing pre-release: ${TAG} (${SHORT_SHA})"
                                     gh release delete "${TAG}" -y --cleanup-tag --repo "${GITHUB_REPO}" 2>/dev/null || true
+                                fi
+
+                                if [ ! -f "${ZIP_FILE}" ]; then
+                                    ZIP_FILE=$(ls -t OpenRCT2-*-windows-portable-win32.zip 2>/dev/null | head -n 1)
+                                fi
+                                if [ -z "${ZIP_FILE}" ]; then
+                                    echo "Error: No release zip found." >&2
+                                    exit 1
                                 fi
 
                                 echo "Publishing release artifact: ${ZIP_FILE} to ${GITHUB_REPO} (${TAG})"
