@@ -177,6 +177,20 @@ install: $(OPENRCT2_DIR)/built $(OPENRCT2_DATA_ARCHIVE) $(CACERT_PEM) $(OBJECTS_
 	mkdir -p $(INSTALL_DIR)/data/sequence && unzip -o $(TITLE_SEQUENCES_ZIP) -d $(INSTALL_DIR)/data/sequence
 	mkdir -p $(INSTALL_DIR)/data && unzip -o $(OPENMUSIC_ZIP) -d $(INSTALL_DIR)/data
 	mkdir -p $(INSTALL_DIR)/data && unzip -o $(OPENSOUND_ZIP) -d $(INSTALL_DIR)/data
+	@if [ ! -x tools/gxc ]; then \
+		mkdir -p tools && \
+		wget -q "https://github.com/OpenRCT2/libsawyer/releases/download/v1.4.0/libsawyer-tools-linux-x64.tar.gz" -O tools.tar.gz && \
+		tar -xzf tools.tar.gz -C tools/ && \
+		chmod +x tools/gxc ; \
+	fi
+	@if [ -x tools/gxc ]; then \
+		echo "Building matching .dat graphics files with gxc from $(OPENRCT2_DIR)/resources/..." && \
+		tools/gxc build $(INSTALL_DIR)/data/g2.dat $(OPENRCT2_DIR)/resources/g2/sprites.json && \
+		tools/gxc build $(INSTALL_DIR)/data/palettes.dat $(OPENRCT2_DIR)/resources/palettes/sprites.json && \
+		tools/gxc build $(INSTALL_DIR)/data/fonts.dat $(OPENRCT2_DIR)/resources/fonts/sprites.json && \
+		tools/gxc build $(INSTALL_DIR)/data/tracks.dat $(OPENRCT2_DIR)/resources/tracks/sprites.json && \
+		echo "Graphics .dat files successfully updated to matching repo versions." ; \
+	fi
 
 .PHONY: check
 check: $(OPENRCT2_DIR)/built
